@@ -34,15 +34,15 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 import sys
 import keyboard
-import time
-from roiinterface import RoiInterface
-from lineinterface import LineInterface
+from roi_selector_gui.roiinterface import RoiInterface
+from roi_selector_gui.lineinterface import LineInterface
 import numpy as np
 import cv2
 
 global continue_recording
 continue_recording = True
 
+FRAME_HEIGHT, FRAME_WIDTH = (1200,1660)
 
 def handle_close(evt):
     """
@@ -144,70 +144,51 @@ def acquire_and_display_images(cam, nodemap, nodemap_tldevice):
         # Figure(1) is default so you can omit this line. Figure(0) will create a new window every time program hits this line
         fig, ax = plt.subplots()
 
-
-        #m = RoiInterface(rois = [], fig = fig, ax = ax)
-        # Close the GUI when close event happens
+        roi = True
         
-        """
-        #Commands for RoiInterface
-        fig.canvas.mpl_connect('close_event', handle_close)
-
-        # Setting up correct calls for GUI
-        ax_finish_btn = fig.add_axes([0.81, 0.02, 0.1, 0.04])
-        ax_add_btn = fig.add_axes([0.7, 0.02, 0.1, 0.04])
-        ax_load_btn = fig.add_axes([0.47, 0.02, 0.22, 0.04])
-        ax_save_btn = fig.add_axes([0.24, 0.02, 0.22, 0.04])
-        
-        btn_finish = Button(ax_finish_btn, 'Finish')
-        btn_finish.on_clicked(m.finish)
-        btn_add = Button(ax_add_btn, 'New ROI')
-        btn_add.on_clicked(m.add)
-        btn_load = Button(ax_load_btn, 'Load Configuration')
-        btn_load.on_clicked(m.load)
-        btn_save = Button(ax_save_btn, 'Save Configuration')
-        btn_save.on_clicked(m.save)
-        
-        fig.canvas.mpl_connect('button_release_event', m.button_release_callback)
-        fig.canvas.mpl_connect('button_press_event', m.button_press_callback)
-        fig.canvas.mpl_connect('motion_notify_event', m.on_mouse_move)
-        fig.canvas.mpl_connect('key_press_event', m.on_key_press)
-        """
-        
-
         plt.pause(.1)
         plt.show(block=False)
         im = ax.imshow(cam.GetNextImage(1000).GetNDArray(), cmap='gray')
-        m = LineInterface(fig = fig, ax = ax)
+        if roi:
+            m = RoiInterface(rois = [], fig = fig, ax = ax, vid=False)
+            btn_finish, btn_add, btn_load, btn_save, btn_auto_gen, auto_gen_row_text_box, auto_gen_col_text_box = m.roi_buttons()
+            
+            btn_finish.on_clicked(m.finish)
+            btn_add.on_clicked(m.add)
+            btn_load.on_clicked(m.load)
+            btn_save.on_clicked(m.save)
+            btn_auto_gen.on_clicked(m.auto_gen)
+            
+            m.path_text_box.set_val(m.get_path())
+            m.ax_path_text_box.set_visible(False)
+            auto_gen_row_text_box.on_text_change(m.row_text_box_changed)
+            auto_gen_col_text_box.on_text_change(m.col_text_box_changed)
+            
+            fig.canvas.mpl_connect('button_release_event', m.button_release_callback)
+            fig.canvas.mpl_connect('button_press_event', m.button_press_callback)
+            fig.canvas.mpl_connect('motion_notify_event', m.on_mouse_move)
+            fig.canvas.mpl_connect('key_press_event', m.on_key_press) 
         
-        # buttons that show immediately
-        m.ax_finish_btn = fig.add_axes([0.81, 0.02, 0.1, 0.04])   
-        m.ax_line_btn = fig.add_axes([0.7, 0.9, 0.11, 0.04])
-        m.ax_gen_btn = fig.add_axes([0.5, 0.9, 0.18, 0.04])
-        m.ax_load_btn = fig.add_axes([0.52, 0.02, 0.27, 0.04])
-        m.ax_save_btn = fig.add_axes([0.24, 0.02, 0.27, 0.04])
-    
-        m.btn_finish = Button(m.ax_finish_btn, 'Finish')
-        m.btn_finish.on_clicked(m.finish)
-        m.btn_line = Button(m.ax_line_btn, 'Add Line')
-        m.btn_line.on_clicked(m.add)
-        m.btn_gen = Button(m.ax_gen_btn, 'Generate ROIs')
-        m.btn_gen.on_clicked(m.generate_rois)     
-        m.btn_load = Button(m.ax_load_btn, 'Load Line Configuration')
-        m.btn_load.on_clicked(m.load)
-        m.btn_save = Button(m.ax_save_btn, 'Save Line Configuration')
-        m.btn_save.on_clicked(m.save)
         
-        # buttons that show after "generate ROIs" has been selected
-        m.ax_save_rois_btn = m.fig.add_axes([0.1, 0.02, 0.12, 0.04])        
-        m.btn_save_rois = Button(m.ax_save_rois_btn, 'Save ROIs')
-        m.btn_save_rois.on_clicked(m.save_rois)
-        m.ax_save_rois_btn.set_visible(False)
-        m.btn_save_rois.set_active(False)
+        else:
+            m = LineInterface(fig = fig, ax = ax, live_video=True)
+            
+            m.line_buttons()
+            
+            m.btn_finish.on_clicked(m.finish)
+            m.btn_line_ver.on_clicked(m.add_vert)
+            m.btn_line_hor.on_clicked(m.add_hor)
+            m.btn_gen.on_clicked(m.generate_rois)
+            m.btn_load.on_clicked(m.load)
+            m.btn_save.on_clicked(m.save)
         
-        fig.canvas.mpl_connect('button_press_event', m.button_press_callback)
-        fig.canvas.mpl_connect('button_release_event', m.button_release_callback)
-        fig.canvas.mpl_connect('motion_notify_event', m.on_mouse_move)
-        fig.canvas.mpl_connect('key_press_event', m.on_key_press)
+            m.hor_text_box.on_text_change(m.hor_text_box_changed)
+            m.vert_text_box.on_text_change(m.vert_text_box_changed)
+                
+            fig.canvas.mpl_connect('button_press_event', m.button_press_callback)
+            fig.canvas.mpl_connect('motion_notify_event', m.on_mouse_move)
+            fig.canvas.mpl_connect('key_press_event', m.on_key_press)
+
         
         # Retrieve and display images
         while(continue_recording):
@@ -277,12 +258,108 @@ def acquire_and_display_images(cam, nodemap, nodemap_tldevice):
         #  properly and do not need to be power-cycled to maintain integrity.
         cam.EndAcquisition()
 
-    except PySpin.SpinnakerException as ex:
-        print('Error: %s' % ex)
+    except Exception as e:
+        print("failed during image GUI capture")
+
+def save_images(cam, nodemap, nodemap_tldevice, vid_name):
+    """
+    This function continuously acquires images from a device and display them in a GUI.
+
+    :param cam: Camera to acquire images from.
+    :param nodemap: Device nodemap.
+    :param nodemap_tldevice: Transport layer device nodemap.
+    :type cam: CameraPtr
+    :type nodemap: INodeMap
+    :type nodemap_tldevice: INodeMap
+    :return: True if successful, False otherwise.
+    :rtype: bool
+    """
+    global continue_recording
+
+    sNodemap = cam.GetTLStreamNodeMap()
+
+    # Change bufferhandling mode to NewestOnly
+    node_bufferhandling_mode = PySpin.CEnumerationPtr(sNodemap.GetNode('StreamBufferHandlingMode'))
+    if not PySpin.IsReadable(node_bufferhandling_mode) or not PySpin.IsWritable(node_bufferhandling_mode):
+        print('Unable to set stream buffer handling mode.. Aborting...')
         return False
 
-    return True
+    # Retrieve entry node from enumeration node
+    node_newestonly = node_bufferhandling_mode.GetEntryByName('NewestOnly')
+    if not PySpin.IsReadable(node_newestonly):
+        print('Unable to set stream buffer handling mode.. Aborting...')
+        return False
 
+    # Retrieve integer value from entry node
+    node_newestonly_mode = node_newestonly.GetValue()
+
+    # Set integer value from entry node as new value of enumeration node
+    node_bufferhandling_mode.SetIntValue(node_newestonly_mode)
+
+    print('*** IMAGE ACQUISITION ***\n')
+    try:
+        node_acquisition_mode = PySpin.CEnumerationPtr(nodemap.GetNode('AcquisitionMode'))
+        if not PySpin.IsReadable(node_acquisition_mode) or not PySpin.IsWritable(node_acquisition_mode):
+            print('Unable to set acquisition mode to continuous (enum retrieval). Aborting...')
+            return False
+
+        # Retrieve entry node from enumeration node
+        node_acquisition_mode_continuous = node_acquisition_mode.GetEntryByName('Continuous')
+        if not PySpin.IsReadable(node_acquisition_mode_continuous):
+            print('Unable to set acquisition mode to continuous (entry retrieval). Aborting...')
+            return False
+
+        # Retrieve integer value from entry node
+        acquisition_mode_continuous = node_acquisition_mode_continuous.GetValue()
+
+        # Set integer value from entry node as new value of enumeration node
+        node_acquisition_mode.SetIntValue(acquisition_mode_continuous)
+
+        cam.BeginAcquisition()
+
+        device_serial_number = ''
+        node_device_serial_number = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceSerialNumber'))
+        if PySpin.IsReadable(node_device_serial_number):
+            device_serial_number = node_device_serial_number.GetValue()
+            print('Device serial number retrieved as %s...' % device_serial_number)
+
+
+        result = cv2.VideoWriter(vid_name,
+                                 cv2.VideoWriter_fourcc(*'MJPG'),
+                                 10, (FRAME_WIDTH, FRAME_HEIGHT))    
+    
+        while(continue_recording):
+            try:
+                image_result = cam.GetNextImage(1000)
+
+                #  Ensure image completion
+                if image_result.IsIncomplete():
+                    print('Image incomplete with image status %d ...' % image_result.GetImageStatus())
+
+                else:                    
+
+                    # Getting the image data as a numpy array
+                    image_data = image_result.GetNDArray()
+
+                    result.write(image_data)                    
+
+                    plt.pause(0.001)
+
+                image_result.Release()
+
+            except PySpin.SpinnakerException as ex:
+                print('Error: %s' % ex)
+                return False
+
+        #  End acquisition
+        #
+        #  *** NOTES ***
+        #  Ending acquisition appropriately helps ensure that devices clean up
+        #  properly and do not need to be power-cycled to maintain integrity.
+        cam.EndAcquisition()
+    
+    except Exception as e:
+        print(e)
 
 def run_single_camera(cam):
     """
