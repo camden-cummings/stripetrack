@@ -44,7 +44,14 @@ class PreciseTime:
             return time()
         return self.time + (perf_counter() - self.perfcounter)
 
-
+def take_video(type_of_video: int):
+    if type_of_video == 0:
+        pass #no video (?)
+    elif type_of_video == 1:
+        pass #short video
+    elif type_of_video == 2:
+        pass #long video
+    
 def track_fish(viz, what_kind_of_movie):
     """
     cam = cv2.VideoCapture(1, cv2.CAP_DSHOW)
@@ -116,7 +123,7 @@ if __name__ == "__main__":
             
             print("spinning up threads")
             
-            t1 = Thread(target=track_fish, args=(True, row.iloc[1], ))
+            t1 = Thread(target=take_video(int(row.iloc[2])), args=(True, row.iloc[1], ))
             t2 = Thread(target=send_to_arduino, args=(at_time, command_string, ))
                 
             t1.start()
