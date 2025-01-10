@@ -12,13 +12,13 @@ from pathlib import PurePath
 
 import subprocess
 
-#import PySpin
+import PySpin
 
-#from AcquireAndDisplay import setup, save_images
+from AcquireAndDisplay import setup, get_image
 
 import os
 
-schedule_times = pd.read_csv(os.getcwd() + "/scheduled-events", sep="\t", header=None)
+schedule_times = pd.read_csv(os.getcwd() + "\\scheduled-events", sep="\t", header=None)
 
 #dev = serial.Serial(port='COM11', baudrate=115200, timeout=.1) 
 
@@ -74,7 +74,8 @@ class Server:
         self.at_time, self.command_string, self.type_of_video = self.process_command_string(schedule_times.iloc[self.counter]) 
         self.num_of_instructions = schedule_times.shape[0]
         self.pt = PreciseTime()
-        
+    
+    """
     def take_video(self):
         print("taking video of kind", self.type_of_video)
         print(self.num_of_instructions)
@@ -90,7 +91,7 @@ class Server:
                 self.video(108000)   
                 
             self.counter += 1
-     
+    """ 
     def send_to_arduino(self):
         prev = -1
 
@@ -115,25 +116,8 @@ class Server:
 
                 prev = self.counter
 
-    
-    def video(self, duration):
-        print(f"video function starts {subtr_seconds(self.at_time)} seconds before time")
-        
-        while self.pt.formatted_time(self.pt.now()) != self.at_time:
-            pass
-        
-        print(f"error in video start is {subtr_seconds(self.at_time)} seconds")
-        
-        end_time = simple_time(self.pt.formatted_time(self.pt.now())) + duration
-        
-        while(simple_time(self.pt.formatted_time(self.pt.now())) < end_time):
-            pass
-        
-        print(f"error in video end is {subtr_seconds(self.at_time) + duration} seconds")
-
-    """        
-    def video(self, duration: int):
-        
+    def video(self):
+        """
         Example entry point; notice the volume of data that the logging event handler
         prints out on debug despite the fact that very little really happens in this
         example. Because of this, it may be better to have the logger set to lower
@@ -142,7 +126,8 @@ class Server:
         duration: in seconds 
         :return: True if successful, False otherwise.
         :rtype: bool
-        
+        """
+        print(f"video function starts {subtr_seconds(self.at_time)} seconds before time")
 
         # Retrieve singleton reference to system object
         system = PySpin.System.GetInstance()
@@ -171,14 +156,10 @@ class Server:
             #input('Done! Press Enter to exit...')
             return False
     
+        cam = cam_list[0]
         # Run example on each camera
-        for i, cam in enumerate(cam_list):
-    
-            print('Running example for camera %d...' % i)
-    
-            self.run_single_camera(cam, duration)
-            print('Camera %d example complete... \n' % i)
-    
+        self.run_single_camera(cam)
+
         # Release reference to camera
         # NOTE: Unlike the C++ examples, we cannot rely on pointer objects being automatically
         # cleaned up when going out of scope.
@@ -190,11 +171,9 @@ class Server:
     
         # Release system instance
         system.ReleaseInstance()
-    
-        print("done")
-            
-    def run_single_camera(self, cam, duration):
-        
+                        
+    def run_single_camera(self, cam):
+        """
         This function acts as the body of the example; please see NodeMapInfo example
         for more in-depth comments on setting up cameras.
     
@@ -202,8 +181,8 @@ class Server:
         :type cam: CameraPtr
         :return: True if successful, False otherwise.
         :rtype: bool
-        
-        print("enters run with {} seconds".format(self.pt.now() % 60 - self.at_time[2]))
+        """
+        print(f"enters run with {subtr_seconds(self.at_time)} seconds")
     
         try:
             nodemap_tldevice = cam.GetTLDeviceNodeMap()
@@ -218,25 +197,42 @@ class Server:
             print("setup is done.")
             #image = save_images(cam)
     
-            i = 0
-            
-            while self.pt.formatted_time(self.pt.now()) != self.at_time:
-                pass
-            
-            end_time = simple_time(self.pt.formatted_time(self.pt.now())) + duration
-            
-            print("error in video start is {} seconds".format(self.pt.now() % 60 - self.at_time[2]))
-    
-            while(simple_time(self.pt.formatted_time(self.pt.now())) < end_time):
-                image = save_images(cam)
-            #    result.write(image)
+            while self.counter < self.num_of_instructions:
+                self.at_time, self.command_string, self.type_of_video = self.process_command_string(schedule_times.iloc[self.counter]) 
+                print(f"entering video function (but still in take video) {subtr_seconds(self.at_time)} seconds before time")
                 
-                #print(image.shape[0] ==)
-                cv2.imwrite(f"images/im-{i}.jpg", image)
-                i += 1
-            
-            print("error in video end is {} seconds".format(self.pt.now() % 60 - self.at_time[2] - duration))
-    
+                if self.type_of_video == 0:
+                    pass #no video (?)
+                elif self.type_of_video == 1:
+                    duration = 1
+                elif self.type_of_video == 2:
+                    duration = 108000
+                
+                i = 0
+                
+                while self.pt.formatted_time(self.pt.now()) != self.at_time:
+                    pass
+                
+                end_time = simple_time(self.pt.formatted_time(self.pt.now())) + duration
+                
+                print(f"error in video start is {subtr_seconds(self.at_time)} seconds")
+                vid_name = "-".join(str(self.pt.formatted_time(self.pt.now())).strip("[]").split(", "))
+                result = cv2.VideoWriter(f'{vid_name}.avi',
+                                 cv2.VideoWriter_fourcc(*'MJPG'),
+                                 15, (1760, 1200), False)
+                
+                while(simple_time(self.pt.formatted_time(self.pt.now())) < end_time):
+                    image = get_image(cam)
+                    result.write(image)
+
+                    #cv2.imwrite(f"images/im-{i}.jpg", image)
+                    i += 1
+                
+                print(f"error in video end is {subtr_seconds(self.at_time) + duration} seconds")
+
+                self.counter += 1    
+
+        
             cam.EndAcquisition()
     
             # Deinitialize camera
@@ -244,7 +240,6 @@ class Server:
     
         except PySpin.SpinnakerException as ex:
             print('Error: %s' % ex)
-    """
 
     def process_command_string(self, cmd_string):
         at_time = [int(r) for r in cmd_string.iloc[0].split(":")]
@@ -263,7 +258,7 @@ class Server:
 s = Server()
 print("spinning up threads")
 
-t1 = Thread(target=s.take_video)
+t1 = Thread(target=s.video)
 t2 = Thread(target=s.send_to_arduino)
 
 print("starting")
@@ -275,7 +270,7 @@ print("started")
 
 #t1.join()
 #t2.join()
-print("joined")
+#print("joined")
     
         #for index, row in schedule_times.iterrows():
         #    print("index", index)
