@@ -1,118 +1,92 @@
-import pandas as pd
-from time import time, perf_counter, get_clock_info, ctime, gmtime
+from time import time, perf_counter, get_clock_info, ctime
+import os
 from threading import Thread
 
+import serial
 import cv2
-
-import serial 
-
-import numpy as np
-
-from pathlib import PurePath
-
-import subprocess
-
+import pandas as pd
 import PySpin
 
 from AcquireAndDisplay import setup, get_image
 
-import os
+dev = serial.Serial(port='COM11', baudrate=115200, timeout=.1)
 
-schedule_times = pd.read_csv(os.getcwd() + "\\scheduled-events", sep="\t", header=None)
 
-#dev = serial.Serial(port='COM11', baudrate=115200, timeout=.1) 
-
-high_speed_path_template = PurePath(".../hsmovie")
-movie_index = 0
-
-keep_on = True
-
-class PreciseTime: 
+class PreciseTime:
+    """Timer which tries to find most precise method of timing."""
     # being paranoid and pulling some nice time code from here: https://github.com/hardbyte/python-can/pull/936
     # to double check that time stamps will be as correct as possible
 
-    def __init__(self): 
-        # use this if the resolution is higher than 10us 
-        if get_clock_info("time").resolution > 1e-5: 
-            t0 = time() 
-            while True: 
-                t1, performance_counter = time(), perf_counter() 
-                if t1 != t0: 
-                    break 
-            self.time = t1 
-            self.perfcounter = performance_counter 
-        else: 
-            self.time = time() 
-            self.perfcounter = None # not needed 
-    
-    # returns in [H, M, S] format
-    def formatted_time(self, time):
-        return [int(c) for c in ctime(time).split()[3].split(":")]
+    def __init__(self):
+        # use this if the resolution is higher than 10us
+        if get_clock_info("time").resolution > 1e-5:
+            t0 = time()
+            while True:
+                t1, performance_counter = time(), perf_counter()
+                if t1 != t0:
+                    break
+            self.time = t1
+            self.perfcounter = performance_counter
+        else:
+            self.time = time()
+            self.perfcounter = None  # not needed
 
-    def now(self): 
-        if self.perfcounter is None: 
+    @staticmethod
+    def formatted_time(input_time) -> list[int, int, int]:
+        """Returns time in [H, M, S] format."""
+        return [int(c) for c in ctime(input_time).split()[3].split(":")]
+
+    def now(self) -> float:
+        """Finds current time according to best timer."""
+        if self.perfcounter is None:
             return time()
         return self.time + (perf_counter() - self.perfcounter)
 
-def simple_time(time):
-    return time[0]*3600+time[1]*60+time[2]
 
-def subtr_seconds(tm):
-    pt = PreciseTime()
-    
-    precise_seconds = pt.now()
-    
-    hour, minute, second = pt.formatted_time(precise_seconds)
+def simple_time(input_time):
+    return input_time[0]*3600+input_time[1]*60+input_time[2]
 
-    s_from_start_of_day = hour * 3600 + minute * 60 + precise_seconds%60
-    
-    return simple_time(tm) - s_from_start_of_day
+
+def subtr_seconds(input_time):
+    """Finds precise different between current time and given time"""
+    timer = PreciseTime()
+
+    current_time_precise = timer.now()
+
+    hour, minute, _ = timer.formatted_time(current_time_precise)
+
+    s_from_start_of_day = hour * 3600 + minute * 60 + current_time_precise % 60
+
+    return simple_time(input_time) - s_from_start_of_day
+
 
 class Server:
-    def __init__(self):
+    """Manages sending series of commands to arduino and taking videos at specified times in given schedule_times file."""
+
+    def __init__(self, schedule_times):
         self.counter = 0
-        self.at_time, self.command_string, self.type_of_video = self.process_command_string(schedule_times.iloc[self.counter]) 
+        self.at_time, self.command_string, self.type_of_video = self.process_command_string(
+            schedule_times.iloc[self.counter])
         self.num_of_instructions = schedule_times.shape[0]
-        self.pt = PreciseTime()
-    
-    """
-    def take_video(self):
-        print("taking video of kind", self.type_of_video)
-        print(self.num_of_instructions)
-        while self.counter < self.num_of_instructions:
-            self.at_time, self.command_string, self.type_of_video = self.process_command_string(schedule_times.iloc[self.counter]) 
-            print(f"entering video function (but still in take video) {subtr_seconds(self.at_time)} seconds before time")
-            
-            if self.type_of_video == 0:
-                pass #no video (?)
-            elif self.type_of_video == 1:
-                self.video(1)   
-            elif self.type_of_video == 2:
-                self.video(108000)   
-                
-            self.counter += 1
-    """ 
+        self.timer = PreciseTime()
+        self.schedule_times = schedule_times
+
     def send_to_arduino(self):
+        """Sends command string to arduino."""
         prev = -1
 
         while self.counter < self.num_of_instructions:
-            #print(f"{self.counter}, {self.num_of_instructions}")
-            #if self.counter == self.num_of_instructions: 
-            #   #here to make sure that if self.num_of_instructions changed midway through loop and while check doesn't run, still doesn't enter next check
-            #    print("!")
-            #    break
             if self.counter != prev and self.counter < self.num_of_instructions:
-                print(self.counter, self.num_of_instructions, "arduino waiting for time {}, current time {}".format(self.at_time, self.pt.formatted_time(self.pt.now())))
-                
-                while self.pt.formatted_time(self.pt.now()) != self.at_time:
-#                    print(self.pt.now() % 60)
+                print(
+                    f"arduino waiting for time {self.at_time}, current time {self.timer.formatted_time(self.timer.now())}")
+
+                while self.timer.formatted_time(self.timer.now()) != self.at_time:
                     if self.counter >= self.num_of_instructions:
                         break
-                    pass
-                    #print(pt.formatted_time(pt.now()), at_time)
 
-                print(f"error in arduino sending is {subtr_seconds(self.at_time)} seconds")
-#                dev.write(bytes(self.command_string, 'utf-8')) 
+                print(
+                    f"error in arduino sending is {subtr_seconds(self.at_time)} seconds")
+                dev.write(bytes(self.command_string, 'utf-8'))
 
                 prev = self.counter
 
@@ -122,42 +96,43 @@ class Server:
         prints out on debug despite the fact that very little really happens in this
         example. Because of this, it may be better to have the logger set to lower
         level in order to provide a more concise, focused log.
-        
-        duration: in seconds 
+
+        duration: in seconds
         :return: True if successful, False otherwise.
         :rtype: bool
         """
-        print(f"video function starts {subtr_seconds(self.at_time)} seconds before time")
+        print(
+            f"video function starts {subtr_seconds(self.at_time)} seconds before time")
 
         # Retrieve singleton reference to system object
         system = PySpin.System.GetInstance()
-    
+
         # Get current library version
         version = system.GetLibraryVersion()
-        print('Library version: %d.%d.%d.%d' % (version.major, version.minor, version.type, version.build))
-    
+        print(
+            f'Library version: {version.major}.{version.minor}.{version.type}.{version.build}')
+
         # Retrieve list of cameras from the system
         cam_list = system.GetCameras()
-    
+
         num_cameras = cam_list.GetSize()
-    
-        print('Number of cameras detected: %d' % num_cameras)
-    
+
+        print(f'Number of cameras detected: {num_cameras}')
+
         # Finish if there are no cameras
         if num_cameras == 0:
-    
+
             # Clear camera list before releasing system
             cam_list.Clear()
-    
+
             # Release system instance
             system.ReleaseInstance()
-    
+
             print('Not enough cameras!')
-            #input('Done! Press Enter to exit...')
+
             return False
-    
+
         cam = cam_list[0]
-        # Run example on each camera
         self.run_single_camera(cam)
 
         # Release reference to camera
@@ -165,131 +140,111 @@ class Server:
         # cleaned up when going out of scope.
         # The usage of del is preferred to assigning the variable to None.
         del cam
-    
+
         # Clear camera list before releasing system
         cam_list.Clear()
-    
+
         # Release system instance
         system.ReleaseInstance()
-                        
+
     def run_single_camera(self, cam):
         """
         This function acts as the body of the example; please see NodeMapInfo example
         for more in-depth comments on setting up cameras.
-    
+
         :param cam: Camera to run on.
         :type cam: CameraPtr
         :return: True if successful, False otherwise.
         :rtype: bool
         """
         print(f"enters run with {subtr_seconds(self.at_time)} seconds")
-    
+
         try:
             nodemap_tldevice = cam.GetTLDeviceNodeMap()
-    
+
             # Initialize camera
             cam.Init()
-    
+
             # Retrieve GenICam nodemap
             nodemap = cam.GetNodeMap()
-            
+
             setup(cam, nodemap, nodemap_tldevice)
             print("setup is done.")
-            #image = save_images(cam)
-    
+
             while self.counter < self.num_of_instructions:
-                self.at_time, self.command_string, self.type_of_video = self.process_command_string(schedule_times.iloc[self.counter]) 
-                print(f"entering video function (but still in take video) {subtr_seconds(self.at_time)} seconds before time")
-                
+                self.at_time, self.command_string, self.type_of_video = self.process_command_string(
+                    self.schedule_times.iloc[self.counter])
+                print(
+                    f"entering video function (but still in take video) {subtr_seconds(self.at_time)} seconds before time")
+
                 if self.type_of_video == 0:
-                    pass #no video (?)
+                    pass  # no video (?)
                 elif self.type_of_video == 1:
                     duration = 1
                 elif self.type_of_video == 2:
                     duration = 108000
-                
+
                 i = 0
-                
-                while self.pt.formatted_time(self.pt.now()) != self.at_time:
+
+                while self.timer.formatted_time(self.timer.now()) != self.at_time:
                     pass
-                
-                end_time = simple_time(self.pt.formatted_time(self.pt.now())) + duration
-                
-                print(f"error in video start is {subtr_seconds(self.at_time)} seconds")
-                vid_name = "-".join(str(self.pt.formatted_time(self.pt.now())).strip("[]").split(", "))
+
+                end_time = simple_time(
+                    self.timer.formatted_time(self.timer.now())) + duration
+
+                print(
+                    f"error in video start is {subtr_seconds(self.at_time)} seconds")
+                vid_name = "-".join(str(self.timer.formatted_time(self.timer.now())
+                                        ).strip("[]").split(", "))
                 result = cv2.VideoWriter(f'{vid_name}.avi',
-                                 cv2.VideoWriter_fourcc(*'MJPG'),
-                                 15, (1760, 1200), False)
-                
-                while(simple_time(self.pt.formatted_time(self.pt.now())) < end_time):
+                                         cv2.VideoWriter_fourcc(*'MJPG'),
+                                         15, (1760, 1200), False)
+
+                while (simple_time(self.timer.formatted_time(self.timer.now())) < end_time):
                     image = get_image(cam)
                     result.write(image)
 
-                    #cv2.imwrite(f"images/im-{i}.jpg", image)
                     i += 1
-                
-                print(f"error in video end is {subtr_seconds(self.at_time) + duration} seconds")
 
-                self.counter += 1    
+                print(
+                    f"error in video end is {subtr_seconds(self.at_time) + duration} seconds")
 
-        
+                self.counter += 1
+
             cam.EndAcquisition()
-    
+
             # Deinitialize camera
             cam.DeInit()
-    
-        except PySpin.SpinnakerException as ex:
-            print('Error: %s' % ex)
 
-    def process_command_string(self, cmd_string):
+        except PySpin.SpinnakerException as ex:
+            print(f'Error: {ex}')
+
+    @staticmethod
+    def process_command_string(cmd_string: pd.DataFrame) -> [list[str], str, int]:
+        """Converts a command into separate pieces."""
+
         at_time = [int(r) for r in cmd_string.iloc[0].split(":")]
-    
+
         arduino_command = cmd_string.iloc[3]
-    
+
         if cmd_string.iloc[1] == "PM" and at_time[0] != 12:
             at_time[0] += 12
-        
+
         video_type = cmd_string.iloc[2]
-        
+
         return at_time, arduino_command, video_type
-    
-    #if __name__ == "__main__":
- 
-s = Server()
+
+
+events = pd.read_csv(os.getcwd() + "\\scheduled-events", sep="\t", header=None)
+s = Server(events)
 print("spinning up threads")
 
-t1 = Thread(target=s.video)
-t2 = Thread(target=s.send_to_arduino)
+video_thread = Thread(target=s.video)
+arduino_thread = Thread(target=s.send_to_arduino)
 
 print("starting")
 
-t1.start()
-t2.start()
+video_thread.start()
+arduino_thread.start()
 
 print("started")
-
-#t1.join()
-#t2.join()
-#print("joined")
-    
-        #for index, row in schedule_times.iterrows():
-        #    print("index", index)
-"""
-        time_diff = simple_time(at_time) - simple_time(pt.formatted_time(pt.now()))
-        prev_time_diff = 0
-        
-        while not time_diff <= 60 or time_diff < 0:
-            time_diff = simple_time(at_time) - simple_time(pt.formatted_time(pt.now()))
-
-            if time_diff != prev_time_diff:
-                print(time_diff)
-                
-            prev_time_diff = time_diff
-            pass
-        
-        #else:
-        #    print("time {} has already passed".format(at_time))
-
-    
-    now = pt.now()
-      """  
