@@ -27,6 +27,28 @@ class ROIInterface:
     def __right_button_press_callback(self):
         pass
             
+    def __motion_notify_callback(self):
+        x,y = dpg.get_mouse_pos(local=True)
+
+        if self.drag_polygon is not None:
+            self.move()
+        elif self.selected_polygon is not None:
+            centr = Polygon(self.selected_polygon.lines).centroid
+    
+            v, future_v = self.find_future_posn((x,y), centr)
+    
+            if -1 <= v <= 1:
+                # doing it this way means we need to reintroduce directionality / pos neg
+                theta = math.acos(v)
+                theta = self.introduce_dir(theta, future_v, centr)
+                
+                self.rotate(theta)
+                        
+    def __left_release_callback(self):
+        self.drag_polygon = None
+        self.selected_polygon_vert = None
+        self.selected_polygon = None
+        
     def check_for_selection(self, mouse_pos):
         for poly in self.rois:
             mouse_pt = Point(mouse_pos)
@@ -143,26 +165,3 @@ class ROIInterface:
                     theta = -theta
 
         return theta
-    
-    def __motion_notify_callback(self):
-        x,y = dpg.get_mouse_pos(local=True)
-
-        if self.drag_polygon is not None:
-            self.move()
-        elif self.selected_polygon is not None:
-            centr = Polygon(self.selected_polygon.lines).centroid
-    
-            v, future_v = self.find_future_posn((x,y), centr)
-    
-            if -1 <= v <= 1:
-                # doing it this way means we need to reintroduce directionality / pos neg
-                theta = math.acos(v)
-                theta = self.introduce_dir(theta, future_v, centr)
-                
-                self.rotate(theta)
-
-                        
-    def __left_release_callback(self):
-        self.drag_polygon = None
-        self.selected_polygon_vert = None
-        self.selected_polygon = None
