@@ -8,7 +8,7 @@ Created on Fri Jan 24 12:22:20 2025
 import dearpygui.dearpygui as dpg
 
 class RoiPoly:
-    def __init__(self, window, lines=None, poly=None):
+    def __init__(self, window, frame_width, frame_height, lines=None, poly=None):
         self.line = None
         self.lines = []
         self.poly = None
@@ -19,6 +19,9 @@ class RoiPoly:
         
         self.window = window
         
+        self.frame_width = frame_width
+        self.frame_height = frame_height
+        
         if lines != None:
             self.lines = lines
             self.completed = True
@@ -26,8 +29,7 @@ class RoiPoly:
             self.poly = dpg.draw_polyline(points=self.lines, color=(255, 0, 0, 255), thickness=1, parent=self.window, closed=True)
 
     def __left_button_press_callback(self):
-        x,y = dpg.get_mouse_pos(local=True)
-        
+        x,y = self.get_mouse_pos()
         if self.completed is False:
             if self.line == None:
                 self.line = [x,y], [x,y]
@@ -53,9 +55,13 @@ class RoiPoly:
 
     def __motion_notify_callback(self):
         if self.line is not None and self.completed is False:
-            x,y = dpg.get_mouse_pos(local=True)
+            x,y = self.get_mouse_pos()
     
-            self.line = self.previous_point, [x,y]
-            self.lines[-1] = [x,y]
+            self.line = self.previous_point, [max(min(x, 0), self.frame_width), max(min(y, 0), self.frame_height)]
+            self.lines[-1] = [min(max(x, 0), self.frame_width), min(max(y, 0), self.frame_height)]
             
             dpg.configure_item(self.poly, points=self.lines)
+
+    def get_mouse_pos(self):
+        x,y = dpg.get_mouse_pos()
+        return x,y+self.frame_height

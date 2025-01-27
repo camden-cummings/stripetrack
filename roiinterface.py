@@ -12,14 +12,16 @@ import math
 import numpy as np
 
 class ROIInterface:
-    def __init__(self):
+    def __init__(self, frame_height, frame_width):
         self.rois = []
         self.selected_polygon = None
         self.selected_polygon_vert = None
         self.drag_polygon = None
-
+        self.frame_width = frame_width
+        self.frame_height = frame_height
+        
     def __left_button_press_callback(self):
-        x,y = dpg.get_mouse_pos(local=True)
+        x,y = self.get_mouse_pos()
 
         if self.drag_polygon is None and self.selected_polygon_vert is None:
             self.check_for_selection((x,y))
@@ -27,8 +29,12 @@ class ROIInterface:
     def __right_button_press_callback(self):
         pass
             
+    def get_mouse_pos(self):
+        x,y = dpg.get_mouse_pos()
+        return x,y+self.frame_height
+    
     def __motion_notify_callback(self):
-        x,y = dpg.get_mouse_pos(local=True)
+        x,y = self.get_mouse_pos()
 
         if self.drag_polygon is not None:
             self.move()
@@ -63,16 +69,22 @@ class ROIInterface:
                     self.selected_polygon = poly
 
     def move(self):
-        x,y = dpg.get_mouse_pos(local=True)
+        x,y = self.get_mouse_pos()
         
         poly = self.drag_polygon.lines
         centr = Polygon(poly).centroid
 
         translated_poly = [[p[0] - centr.x + x, p[1] - centr.y + y] for p in poly]
         
-        self.drag_polygon.lines = translated_poly
-        dpg.configure_item(self.drag_polygon.poly, points=self.drag_polygon.lines)
-        
+        for point in translated_poly:
+            if point[0] > self.frame_width or 0 > point[0]:
+                break
+            elif point[1] > self.frame_height or 0 > point[1]:
+                break
+        else:            
+            self.drag_polygon.lines = translated_poly
+            dpg.configure_item(self.drag_polygon.poly, points=self.drag_polygon.lines)
+            
     def rotate(self, angle):
         poly = self.selected_polygon.lines
         centr = Polygon(poly).centroid
