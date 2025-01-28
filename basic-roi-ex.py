@@ -2,6 +2,7 @@ import dearpygui.dearpygui as dpg
 
 from roipoly import RoiPoly
 from roiinterface import ROIInterface
+from lineinterface import LineInterface
 
 import pickle
 
@@ -10,6 +11,8 @@ import os
 import cv2
 
 import numpy as np
+
+
 
 dpg.create_context()
 
@@ -22,46 +25,24 @@ frame_height = int(vidcap.get(4))
 
 raw_data = np.zeros((frame_height, frame_width, 3), dtype=np.float32)
 
-class LineInterface:
-    def __init__(self):
-        self.lines = []
-        self.multi_roi = None
-        self.drag_point = None
-        self.drag_line = None
-        self.hover_line = None
-    
-    def __vertical_line(self):
-        pass
-        
-    def __horizontal_line(self):
-        pass
-    
-    def __generate_rois(self):
-        
-        pass
-    
-    def __load_line_config(self):
-        pass
-    
-    def __save_line_config(self):
-        pass
-    
-
 class StateManager:
     def __init__(self):
         self.inactive = True
         self.current_roi = None
+        self.ROI = True
         self.roi_interface = ROIInterface(frame_height, frame_width)
-        self.line_interface = LineInterface()
+        self.line_interface = LineInterface(frame_height, frame_width, window)
         
     def __left_button_press_callback(self):
-        if self.inactive and len(self.roi_interface.rois) > 0:
+        if self.inactive and len(self.roi_interface.rois) > 0 and self.ROI:
             self.roi_interface._ROIInterface__left_button_press_callback()
+        elif not self.ROI:
+            self.line_interface._LineInterface__left_button_press_callback()
         elif not self.inactive:
             self.current_roi._RoiPoly__left_button_press_callback()
             
     def __right_button_press_callback(self):
-        if self.inactive and len(self.roi_interface.rois) > 0:
+        if self.inactive and len(self.roi_interface.rois) > 0 and self.ROI:
             self.roi_interface._ROIInterface__right_button_press_callback()
         elif not self.inactive:
             self.current_roi._RoiPoly__right_button_press_callback()      
@@ -72,8 +53,10 @@ class StateManager:
                 self.current_roi = None
                                         
     def __motion_notify_callback(self):
-        if self.inactive and len(self.roi_interface.rois) > 0:
+        if self.inactive and self.ROI and len(self.roi_interface.rois) > 0:
             self.roi_interface._ROIInterface__motion_notify_callback()
+        elif not self.ROI:
+            self.line_interface._LineInterface__motion_notify_callback()
         elif not self.inactive:
             self.current_roi._RoiPoly__motion_notify_callback()
     
@@ -85,17 +68,22 @@ class StateManager:
         self.inactive = False
 
     def __release(self):
-        if self.inactive and len(self.roi_interface.rois) > 0:
+        if self.inactive and len(self.roi_interface.rois) > 0 and self.ROI:
             self.roi_interface._ROIInterface__left_release_callback()
-        
+        elif not self.ROI:
+            self.line_interface._LineInterface__left_release_callback()
+                
     def __change(self, e, data):
         if data == "ROI":
             dpg.show_item(roi)
             dpg.hide_item(line)
+            
+            self.ROI = True
         elif data == "Line":
             dpg.show_item(line)
             dpg.hide_item(roi)
-    
+            self.ROI = False
+
     def __save_rois(self):
         with open(os.getcwd() + "/cells.save", 'wb') as filename:
             pickle.dump(self.roi_interface.rois, filename)
@@ -114,9 +102,6 @@ class StateManager:
         self.roi_interface.rois.extend(new_rois)
 
 
-state_manager = StateManager()
-
-
 with dpg.texture_registry(show=False):
     dpg.add_raw_texture(frame_width, frame_height, raw_data, format=dpg.mvFormat_Float_rgb, tag="texture_tag")
     
@@ -124,6 +109,7 @@ with dpg.theme() as canvas_theme, dpg.theme_component():
     dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 0,0)
 
 with dpg.window(label="Video player", pos=(50,50), width = frame_width, height=frame_height+100) as window:
+    state_manager = StateManager()
 
     #dpg.bind_item_theme(canvas, canvas_theme)
     #drawlist = dpg.add_drawlist(width=500, height=500)
@@ -156,7 +142,9 @@ with dpg.window(label="Video player", pos=(50,50), width = frame_width, height=f
         
         with dpg.group(label="line buttons", horizontal=True, pos=[105,0]) as line:
             dpg.add_button(label="Vertical Line", callback=state_manager.line_interface._LineInterface__vertical_line)
+            vert = dpg.add_input_text(width=15, source="int_value", default_value=1, callback=state_manager.line_interface._LineInterface__num_of_vert_lines_changer)
             dpg.add_button(label="Horizontal Line", callback=state_manager.line_interface._LineInterface__horizontal_line)
+            hor = dpg.add_input_text(width=15, source="int_value", default_value=1, callback=state_manager.line_interface._LineInterface__num_of_hor_lines_changer)
             dpg.add_button(label="Generate ROIs", callback=state_manager.line_interface._LineInterface__generate_rois)
             dpg.add_button(label="Load Line Configuration", callback=state_manager.line_interface._LineInterface__load_line_config)
             dpg.add_button(label="Save Line Configuration", callback=state_manager.line_interface._LineInterface__save_line_config)
@@ -175,6 +163,7 @@ while dpg.is_dearpygui_running():
     data = data.ravel()
     data = np.asfarray(data, dtype='f')
     texture_data = np.true_divide(data, 255.0)
+    
     dpg.set_value("texture_tag", texture_data)
     
     dpg.render_dearpygui_frame()

@@ -177,3 +177,11 @@ class ROIInterface:
                     theta = -theta
 
         return theta
+    
+    def copy(): #TODO finish
+        pass
+    
+    def delete(): #TODO finish
+        pass
+    
+    
