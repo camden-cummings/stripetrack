@@ -6,13 +6,9 @@ from lineinterface import LineInterface
 
 import pickle
 
-import os
-
 import cv2
 
 import numpy as np
-
-
 
 dpg.create_context()
 
@@ -85,13 +81,10 @@ class StateManager:
             self.ROI = False
 
     def __save_rois(self):
-        with open(os.getcwd() + "/cells.save", 'wb') as filename:
+        with open(ex_fn[:-4] + ".cells", 'wb') as filename:
             pickle.dump(self.roi_interface.rois, filename)
-                
-    def __auto_gen_rois(self):
-        pass
- 
-    def __callback(self, _, app_data: dict):        
+
+    def __load_rois(self, _, app_data: dict):        
         with open(app_data["file_path_name"], 'rb') as filename:
             rois = pickle.load(filename)
             
@@ -100,7 +93,23 @@ class StateManager:
             new_rois.append(RoiPoly(window, frame_width, frame_height, roi.lines, roi.poly))
             
         self.roi_interface.rois.extend(new_rois)
-
+            
+    def __load_line_config(self, _, app_data: dict):
+        with open(app_data["file_path_name"], 'rb') as filename:
+            lines = pickle.load(filename)
+            self.line_interface.load_lines(lines)
+    
+    def __save_line_config(self):
+        with open(ex_fn[:-4] + ".lines", 'wb') as filename:
+            new_lines = []
+            for line in self.line_interface.lines:
+                config_dict = dpg.get_item_configuration(line)
+                new_lines.append([config_dict["p1"], config_dict["p2"]])
+            pickle.dump(new_lines, filename)    
+        
+    def __auto_gen_rois(self):
+        pass
+ 
 
 with dpg.texture_registry(show=False):
     dpg.add_raw_texture(frame_width, frame_height, raw_data, format=dpg.mvFormat_Float_rgb, tag="texture_tag")
@@ -119,31 +128,37 @@ with dpg.window(label="Video player", pos=(50,50), width = frame_width, height=f
     
     with dpg.child_window(border=False):
         with dpg.group():
-            dpg.add_combo(("ROI", "Line"), label="Mode", width=50, pos=[frame_width+10,0], callback=state_manager._StateManager__change, default_value="ROI")
+            shift = frame_width+10
+            dpg.add_combo(("ROI", "Line"), label="Mode", width=50, pos=[shift,0], callback=state_manager._StateManager__change, default_value="ROI")
             
-            with dpg.group(label="roi buttons", pos=[frame_width+10,25]) as roi: #ROI Mode Buttons
+            with dpg.group(label="roi buttons", pos=[shift,25]) as roi: #ROI Mode Buttons
                 dpg.add_button(label="New ROI", callback=state_manager._StateManager__new_roi)
                 
-                with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager._StateManager__callback, id="roi_load_file", width=700 ,height=400):
-                    dpg.add_file_extension(".save", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
+                with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager._StateManager__load_rois, id="roi_load_file", width=700 ,height=400):
+                    dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
                     
                 dpg.add_button(label="Load ROI File", callback=lambda: dpg.show_item("roi_load_file"))
         
                 dpg.add_button(label="Save ROIs", callback=state_manager._StateManager__save_rois)
                 dpg.add_button(label="Auto Generate ROIs", callback=state_manager._StateManager__auto_gen_rois)
                 
-                dpg.add_text("NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete", pos=(frame_width + 15, 125), wrap=150)
+                dpg.add_text("NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete", pos=(shift+5, 125), wrap=150)
 
-            with dpg.group(label="line buttons", pos=[frame_width+10, 25]) as line:
+            with dpg.group(label="line buttons", pos=[shift, 25]) as line:
                 dpg.add_button(label="Vertical Line", callback=state_manager.line_interface._LineInterface__vertical_line)
-                vert = dpg.add_input_text(width=15, source="int_value", default_value=1, callback=state_manager.line_interface._LineInterface__num_of_vert_lines_changer)
+                vert = dpg.add_input_text(width=15, source="int_value", default_value=1, pos=[shift+104,25], callback=state_manager.line_interface._LineInterface__num_of_vert_lines_changer)
                 dpg.add_button(label="Horizontal Line", callback=state_manager.line_interface._LineInterface__horizontal_line)
-                hor = dpg.add_input_text(width=15, source="int_value", default_value=1, callback=state_manager.line_interface._LineInterface__num_of_hor_lines_changer)
+                hor = dpg.add_input_text(width=15, source="int_value", default_value=1, pos=[shift+118,48], callback=state_manager.line_interface._LineInterface__num_of_hor_lines_changer)
                 dpg.add_button(label="Generate ROIs", callback=state_manager.line_interface._LineInterface__generate_rois)
-                dpg.add_button(label="Load Line Configuration", callback=state_manager.line_interface._LineInterface__load_line_config)
-                dpg.add_button(label="Save Line Configuration", callback=state_manager.line_interface._LineInterface__save_line_config)
-            
-                dpg.add_text("NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete", pos=(frame_width + 15, 195), wrap=150)
+                
+                dpg.add_button(label="Save Line Configuration", callback=state_manager._StateManager__save_line_config)
+
+                with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager._StateManager__load_line_config, id="line_load_file", width=700 ,height=400):
+                    dpg.add_file_extension(".lines", color=(0, 255, 0, 255), custom_text="[Line Save File]")
+                
+                dpg.add_button(label="Load Line Configuration", callback=lambda: dpg.show_item("line_load_file"))
+
+                dpg.add_text("NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete", pos=(shift+5, 195), wrap=150)
 
             dpg.hide_item(line)
     

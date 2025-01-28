@@ -51,12 +51,6 @@ class LineInterface:
     def __generate_rois(self):
         pass
     
-    def __load_line_config(self):
-        pass
-    
-    def __save_line_config(self):
-        pass
-    
     def __motion_notify_callback(self):
         if self.drag_line is not None:
             cursor_posn = dpg.get_mouse_pos()
@@ -78,6 +72,11 @@ class LineInterface:
 
     def __num_of_hor_lines_changer(self, _, data):
         self.hor_lines = int(data) if re.search('^\d*$', data) else self.hor_lines
+        
+    def load_lines(self, lines):
+        for line in lines:
+            l = dpg.draw_line(line[0], line[1], color=(255, 0, 0, 255), parent=self.window)    
+            self.lines.append(l)
         
     def move_line(self, cursor_posn: tuple[int,int]):
         """
