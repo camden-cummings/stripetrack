@@ -59,13 +59,13 @@ class LineInterface:
     
     def __motion_notify_callback(self):
         if self.drag_line is not None:
-            cursor_posn = self.get_mouse_pos()
+            cursor_posn = dpg.get_mouse_pos()
             
             if (0 <= cursor_posn[0] <= self.frame_width) and (0 <= cursor_posn[1] <= self.frame_height):
                 self.move_line(cursor_posn)
                     
     def __left_button_press_callback(self):
-        cursor_posn = self.get_mouse_pos()
+        cursor_posn = dpg.get_mouse_pos()
 
         if self.drag_line is None:  # we haven't selected a point to drag
             self.check_for_selection(cursor_posn)
@@ -139,10 +139,6 @@ class LineInterface:
                     self.drag_line = line
                     self.drag_point = v
                                         
-    def get_mouse_pos(self):
-        x,y = dpg.get_mouse_pos()
-        return x,y+self.frame_height
-    
     def copy(): #TODO finish
         pass
     

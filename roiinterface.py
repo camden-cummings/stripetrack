@@ -21,7 +21,7 @@ class ROIInterface:
         self.frame_height = frame_height
         
     def __left_button_press_callback(self):
-        x,y = self.get_mouse_pos()
+        x,y = dpg.get_mouse_pos()
 
         if self.drag_polygon is None and self.selected_polygon_vert is None:
             self.check_for_selection((x,y))
@@ -29,12 +29,8 @@ class ROIInterface:
     def __right_button_press_callback(self):
         pass
             
-    def get_mouse_pos(self):
-        x,y = dpg.get_mouse_pos()
-        return x,y+self.frame_height
-    
     def __motion_notify_callback(self):
-        x,y = self.get_mouse_pos()
+        x,y = dpg.get_mouse_pos()
 
         if self.drag_polygon is not None:
             self.move()
@@ -69,7 +65,7 @@ class ROIInterface:
                     self.selected_polygon = poly
 
     def move(self):
-        x,y = self.get_mouse_pos()
+        x,y = dpg.get_mouse_pos()
         
         poly = self.drag_polygon.lines
         centr = Polygon(poly).centroid
