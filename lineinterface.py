@@ -47,10 +47,7 @@ class LineInterface:
             self.lines.append(l)
 
         pass
-    
-    def __generate_rois(self):
-        pass
-    
+
     def __motion_notify_callback(self):
         if self.drag_line is not None:
             cursor_posn = dpg.get_mouse_pos()

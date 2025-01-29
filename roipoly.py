@@ -8,7 +8,7 @@ Created on Fri Jan 24 12:22:20 2025
 import dearpygui.dearpygui as dpg
 
 class RoiPoly:
-    def __init__(self, window, frame_width, frame_height, lines=None, poly=None):
+    def __init__(self, window, frame_width, frame_height, lines=None):
         self.line = None
         self.lines = []
         self.poly = None
@@ -22,10 +22,9 @@ class RoiPoly:
         self.frame_width = frame_width
         self.frame_height = frame_height
         
-        if lines != None:
+        if lines is not None:
             self.lines = lines
             self.completed = True
-            self.poly = poly
             self.poly = dpg.draw_polyline(points=self.lines, color=(255, 0, 0, 255), thickness=1, parent=self.window, closed=True)
 
     def __left_button_press_callback(self):
