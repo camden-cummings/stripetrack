@@ -28,6 +28,7 @@ class StateManager:
         self.inactive = True
         self.current_roi = None
         self.ROI = True
+        self.ctrl_has_been_pressed = False
         self.roi_interface = ROIInterface(frame_height, frame_width)
         self.line_interface = LineInterface(frame_height, frame_width, window)
         
@@ -221,11 +222,33 @@ class StateManager:
 
         for roi in self.roi_interface.rois:
             dpg.delete_item(roi.poly)
-            print("deleting:", roi)
         
         self.roi_interface.rois.clear()
 
-    
+    def __copy(self, _, app_data):            
+        if self.ROI and self.ctrl_has_been_pressed:
+            
+            roi = self.roi_interface.check_for_hover()
+            if roi is not None:
+                new_roi = RoiPoly(window, frame_width, frame_height, lines=roi.lines)
+                self.roi_interface.rois.append(new_roi)
+        else:
+            self.line_interface.copy()
+            
+        self.ctrl_has_been_pressed=False
+        
+    def __control(self, _, __): # janky soln to key press check
+        self.ctrl_has_been_pressed = True
+        
+    def __delete(self, _, appdata):
+        if self.ROI:
+            roi = self.roi_interface.check_for_hover()
+            dpg.delete_item(roi.poly)
+            self.roi_interface.rois.remove(roi)
+
+        else:
+            self.line_interface.delete()
+        
 with dpg.texture_registry(show=False):
     dpg.add_raw_texture(frame_width, frame_height, raw_data, format=dpg.mvFormat_Float_rgb, tag="texture_tag")
     
@@ -240,7 +263,10 @@ with dpg.window(label="Video player", pos=(50,50), width = frame_width, height=f
         dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Left, callback=state_manager._StateManager__release)
         dpg.add_mouse_click_handler(button=dpg.mvMouseButton_Left, callback=state_manager._StateManager__left_button_press_callback)
         dpg.add_mouse_click_handler(button=dpg.mvMouseButton_Right, callback=state_manager._StateManager__right_button_press_callback)
-    
+        dpg.add_key_press_handler(key=dpg.mvKey_C, callback=state_manager._StateManager__copy)
+        dpg.add_key_press_handler(key=dpg.mvKey_LControl, callback=state_manager._StateManager__control)
+        dpg.add_key_press_handler(key=dpg.mvKey_Delete, callback=state_manager._StateManager__delete)
+        
     with dpg.child_window(border=False):
         with dpg.group() as roi_and_line_selection:
             shift = frame_width+10

@@ -64,6 +64,17 @@ class ROIInterface:
                     self.selected_polygon_vert = point
                     self.selected_polygon = poly
 
+    def check_for_hover(self):
+        mouse_pos = dpg.get_mouse_pos()
+        for roi in self.rois:
+            mouse_pt = Point(mouse_pos)
+            n_poly = Polygon(roi.lines)
+
+            if mouse_pt.within(n_poly):
+                return roi
+        return None
+    
+    
     def move(self):
         x,y = dpg.get_mouse_pos()
         
@@ -173,11 +184,3 @@ class ROIInterface:
                     theta = -theta
 
         return theta
-    
-    def copy(): #TODO finish
-        pass
-    
-    def delete(): #TODO finish
-        pass
-    
-    

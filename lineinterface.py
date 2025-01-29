@@ -134,13 +134,32 @@ class LineInterface:
                 if math.dist((x,y), cursor_posn) < self.hypotenuse/16:
                     self.drag_line = line
                     self.drag_point = v
-                                        
-    def copy(): #TODO finish
-        pass
     
-    def delete(): #TODO finish
-        pass
+    def check_for_hover(self):
+        cursor_posn = dpg.get_mouse_pos()
+        points = []
+        line_num = -1
+        for line in self.lines:
+            config_dict = dpg.get_item_configuration(line)
+            p1 = config_dict["p1"]
+            p2 = config_dict["p2"]
 
-    def clear_all_lines(self):  #TODO finish
-        pass
+            line_centr = ((p1[0]+p2[0])/2, (p1[1]+p2[1])/2)
+            if math.dist(line_centr, cursor_posn) < 20: #TODO: change to a value that changes with size of canvas
+                points = [p1, p2]
+                line_num = line
+        
+        return points, line_num
     
+    def copy(self):
+        points, _ = self.check_for_hover()
+        if len(points) > 0:
+            l = dpg.draw_line(points[0], points[1], color=(255, 0, 0, 255), parent=self.window)
+            self.lines.append(l)
+            
+    def delete(self):
+        _, l = self.check_for_hover()
+        if l != -1:
+            dpg.delete_item(l)
+            self.lines.remove(l)
+            
