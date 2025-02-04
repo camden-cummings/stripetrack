@@ -7,7 +7,7 @@ import cv2
 import pandas as pd
 import PySpin
 
-from AcquireAndDisplay import setup, get_image
+from AcquireAndDisplayClass import setup, get_image
 
 dev = serial.Serial(port='COM11', baudrate=115200, timeout=.1)
 

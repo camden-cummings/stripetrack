@@ -37,6 +37,8 @@ import cv2
 import dearpygui.dearpygui as dpg
 from pathlib import Path
 
+from pynput.keyboard import Key, Controller
+
 import matplotlib.pyplot as plt
 
 from roi_selector_gui_dpg.statemanager import StateManager
@@ -93,7 +95,9 @@ def __restart():
     
 def __start_movies_and_stimuli():
     print("go to arduino script here")
-    subprocess.call("arduino filepath")
+    keyboard = Controller()
+    keyboard.press(Key.enter)
+    subprocess.call(['python.exe',"arduino_server.py"])
 
 def setup_elements():
     with dpg.texture_registry(show=False):
