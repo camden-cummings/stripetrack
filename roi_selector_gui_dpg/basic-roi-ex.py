@@ -1,13 +1,17 @@
 import dearpygui.dearpygui as dpg
 import cv2
 import numpy as np
+from pathlib import Path
 
 from statemanager import StateManager
 
+import subprocess
 
 dpg.create_context()
 
-ex_fn = "/home/chamomile/Thyme-lab/data/vids/social_and_many_well/testlog_277_ubi-kcn.avi"
+fp = "/home/chamomile/Thyme-lab/data/vids/social_and_many_well/"
+#ex_fn = fp + "fc2_save_2025-01-31-125230-0000.mp4"
+ex_fn = fp + "fc2_save_2025-01-31-125333-0000.mp4"
 
 vidcap = cv2.VideoCapture(ex_fn)
 
@@ -37,8 +41,12 @@ def __restart():
     dpg.show_item(roi_and_line_selection)
     dpg.hide_item(post_line)
 
-    state_manager.clear_screen()
+    state_manager.clear_window()
+    print(state_manager.roi_interface.rois)
     
+def __start_movies_and_stimuli():
+    print("go to arduino script here")
+    subprocess.call("arduino filepath")
     
 with dpg.texture_registry(show=False):
     dpg.add_raw_texture(frame_width, frame_height, raw_data, format=dpg.mvFormat_Float_rgb, tag="texture_tag")
@@ -62,17 +70,25 @@ with dpg.window(label="Video player", pos=(50,50), width = frame_width, height=f
         with dpg.group() as roi_and_line_selection:
             shift = frame_width+10
             dpg.add_combo(("ROI", "Line"), label="Mode", width=50, pos=[shift,0], callback=__change, default_value="ROI")
+            dpg.add_button("START", callback=__start_movies_and_stimuli)
             
+            path = Path(ex_fn)
             with dpg.group(label="roi buttons", pos=[shift,25]) as roi: #ROI Mode Buttons
                 dpg.add_button(label="New ROI", callback=state_manager.new_roi)
                 
-                with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.load_rois, id="roi_load_file", width=700 ,height=400):
+                curr_dir = path.parent
+                curr_name = str(path.stem)
+                with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.roi_interface.load_rois, id="roi_load_file", width=700 ,height=400, default_path = curr_dir, default_filename = curr_name):
                     dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
                     
                 dpg.add_button(label="Load ROI File", callback=lambda: dpg.show_item("roi_load_file"))
         
-                dpg.add_button(label="Save ROIs", callback=state_manager.save_rois)
+                with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.roi_interface.save_rois, id="roi_save_file", width=700 ,height=400, default_path = curr_dir, default_filename = curr_name):
+                    dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
+                    
+                dpg.add_button(label="Save ROIs", callback=lambda: dpg.show_item("roi_save_file"))
                 dpg.add_button(label="Auto Generate ROIs", callback=state_manager.auto_gen_rois)
+                
                 
                 dpg.add_text("NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete", pos=(shift+5, 125), wrap=150)
 
@@ -82,10 +98,13 @@ with dpg.window(label="Video player", pos=(50,50), width = frame_width, height=f
                 dpg.add_button(label="Horizontal Line", callback=state_manager.line_interface.horizontal_line_callback)
                 hor = dpg.add_input_text(width=15, source="int_value", default_value=1, pos=[shift+118,48], callback=state_manager.line_interface.num_of_hor_lines_changer)
                 dpg.add_button(label="Generate ROIs", callback=__generate_rois)
-                
-                dpg.add_button(label="Save Line Configuration", callback=state_manager.save_line_config)
 
-                with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.load_line_config, id="line_load_file", width=700 ,height=400):
+                with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.line_interface.save_lines, id="line_save_file", width=700 ,height=400):
+                    dpg.add_file_extension(".lines", color=(0, 255, 0, 255), custom_text="[Line Save File]")
+                    
+                dpg.add_button(label="Save Line Configuration", callback="line_save_file")
+
+                with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.line_interface.load_lines, id="line_load_file", width=700 ,height=400):
                     dpg.add_file_extension(".lines", color=(0, 255, 0, 255), custom_text="[Line Save File]")
                 
                 dpg.add_button(label="Load Line Configuration", callback=lambda: dpg.show_item("line_load_file"))
@@ -95,7 +114,7 @@ with dpg.window(label="Video player", pos=(50,50), width = frame_width, height=f
             dpg.hide_item(line)
         
         with dpg.group(label="post line buttons", pos=[shift,0]) as post_line:
-            dpg.add_button(label="Save ROIs", callback=state_manager.save_rois)
+            dpg.add_button(label="Save ROIs", callback=state_manager.roi_interface.save_rois)
             dpg.add_button(label="Clear Screen and Start Over", callback=__restart)
 
         dpg.hide_item(post_line)
@@ -109,6 +128,11 @@ dpg.show_viewport()
 
 while dpg.is_dearpygui_running():
     cont, curr_img = vidcap.read()
+    
+        
+    if not cont:
+        _ = vidcap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        cont, curr_img = vidcap.read()
     
     data = np.flip(curr_img, 2)
     data = data.ravel()

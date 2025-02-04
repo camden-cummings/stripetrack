@@ -7,6 +7,7 @@ Created on Tue Jan 28 13:47:51 2025
 """
 import math
 import re
+import pickle
 
 import cv2
 import numpy as np
@@ -82,14 +83,7 @@ class LineInterface:
         """Keep desired number of vertical lines updated as it is changed in text box."""
         self.hor_lines = int(data) if re.search(
             r'^\d*$', data) and len(data) > 0 else self.hor_lines
-
-    def load_lines(self, lines):
-        """Loading lines in """
-        for line in lines:
-            loaded_line = dpg.draw_line(line[0], line[1], color=(
-                255, 0, 0, 255), parent=self.window)
-            self.lines.append(loaded_line)
-
+        
     def move_line(self, mouse_posn: tuple[int, int]):
         """
         Calculates where to move the line and sets it to the value.
@@ -181,6 +175,25 @@ class LineInterface:
             dpg.delete_item(hovered_line)
             self.lines.remove(hovered_line)
 
+    def load_lines(self, _, app_data: dict):
+        with open(app_data["file_path_name"], 'rb') as filename:
+            lines = pickle.load(filename)
+            
+            for line in lines:
+                loaded_line = dpg.draw_line(line[0], line[1], color=(
+                    255, 0, 0, 255), parent=self.window)
+                self.lines.append(loaded_line)
+
+    # TODO change to being able to save to filename specified
+    def save_lines(self, path):
+        with open(path[:-4] + ".lines", 'wb') as filename:
+            new_lines = []
+            for line in self.lines:
+                config_dict = dpg.get_item_configuration(line)
+                new_lines.append([config_dict["p1"], config_dict["p2"]])
+                
+            pickle.dump(new_lines, filename)
+            
     def generate_rois(self):
         """Creates ROIs from set of lines."""
         lines = []

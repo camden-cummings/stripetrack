@@ -6,21 +6,25 @@ Created on Fri Jan 24 12:24:21 2025
 @author: chamomile
 """
 import math
+import pickle
 
 import numpy as np
 import dearpygui.dearpygui as dpg
 from shapely.geometry import Point, Polygon
 
+from roipoly import RoiPoly
+
 class ROIInterface:
     """Defines useful methods for interacting (moving, rotating) polygons."""
-    def __init__(self, frame_height, frame_width):
+    def __init__(self, frame_height, frame_width, window):
         self.rois = []
         self.selected_polygon = None
         self.selected_polygon_vert = None
         self.drag_polygon = None
         self.frame_width = frame_width
         self.frame_height = frame_height
-
+        self.window = window
+    
     def left_mouse_press_callback(self):
         """When mouse clicked, checks if current mouse position is near to a polygon or a polygon vertex."""
         x, y = dpg.get_mouse_pos()
@@ -113,6 +117,21 @@ class ROIInterface:
         dpg.configure_item(self.selected_polygon.poly,
                            points=self.selected_polygon.lines)
 
+    def save_rois(self, _, app_data):  # TODO change to being able to save to filename specified
+        with open(app_data["file_path_name"], 'wb') as filename:
+            pickle.dump(self.rois, filename)
+
+    def load_rois(self, _, app_data: dict):
+        with open(app_data["file_path_name"], 'rb') as filename:
+            rois = pickle.load(filename)
+
+        new_rois = []
+        for roi in rois:
+            new_rois.append(
+                RoiPoly(self.window, self.frame_width, self.frame_height, roi.lines))
+
+        self.rois.extend(new_rois)
+        
     def find_future_posn(self, cursor_posn: tuple[int, int], centr: tuple[int, int]) \
             -> tuple[tuple[int, int], tuple[int, int]]:
         """
