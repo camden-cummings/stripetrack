@@ -70,7 +70,7 @@ with dpg.window(label="Video player", pos=(50,50), width = frame_width, height=f
         with dpg.group() as roi_and_line_selection:
             shift = frame_width+10
             dpg.add_combo(("ROI", "Line"), label="Mode", width=50, pos=[shift,0], callback=__change, default_value="ROI")
-            dpg.add_button("START", callback=__start_movies_and_stimuli)
+            dpg.add_button(label="START", callback=__start_movies_and_stimuli)
             
             path = Path(ex_fn)
             with dpg.group(label="roi buttons", pos=[shift,25]) as roi: #ROI Mode Buttons
