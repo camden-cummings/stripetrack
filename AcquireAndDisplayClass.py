@@ -37,7 +37,8 @@ import cv2
 global continue_recording
 continue_recording = True
 
-FRAME_HEIGHT, FRAME_WIDTH = (1200,1920)
+#FRAME_HEIGHT, FRAME_WIDTH = 1200,1920
+FRAME_HEIGHT, FRAME_WIDTH = 660, 1088
 
 def handle_close(evt):
     """
@@ -71,7 +72,11 @@ def setup(cam, nodemap, nodemap_tldevice):
     # Set integer value from entry node as new value of enumeration node
     node_bufferhandling_mode.SetIntValue(node_newestonly_mode)
     
-    #print('*** IMAGE ACQUISITION ***\n')
+    #nodemap_applayer = cam.GetNodeMap()
+    
+    #node_fps = PySpin.CFloatPtr(nodemap_applayer.GetNode("AcquisitionFrameRate"))
+    #node_fps.SetValue(100.0)
+            #print('*** IMAGE ACQUISITION ***\n')
     try:
         node_acquisition_mode = PySpin.CEnumerationPtr(nodemap.GetNode('AcquisitionMode'))
         if not PySpin.IsReadable(node_acquisition_mode) or not PySpin.IsWritable(node_acquisition_mode):
@@ -115,11 +120,9 @@ def get_image(cam):
     :return: True if successful, False otherwise.
     :rtype: bool
     """
-
-    #while(continue_recording):
+            #while(continue_recording):
     try:
-        image_result = cam.GetNextImage(1000)
-
+        image_result = cam.GetNextImage(300)
         #  Ensure image completion
         if image_result.IsIncomplete():
             print('Image incomplete with image status %d ...' % image_result.GetImageStatus())
@@ -127,7 +130,7 @@ def get_image(cam):
         else:                    
             # Getting the image data as a numpy array
             image_data = image_result.GetNDArray()
-            
+
             #plt.pause(0.001)
 
         image_result.Release()

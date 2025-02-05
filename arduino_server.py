@@ -11,6 +11,7 @@ from AcquireAndDisplayClass import setup, get_image
 
 dev = serial.Serial(port='COM11', baudrate=115200, timeout=.1)
 
+FRAME_HEIGHT, FRAME_WIDTH = 660, 1088
 
 class PreciseTime:
     """Timer which tries to find most precise method of timing."""
@@ -164,10 +165,31 @@ class Server:
 
             # Initialize camera
             cam.Init()
-
-            # Retrieve GenICam nodemap
             nodemap = cam.GetNodeMap()
 
+            """
+
+            cam.BeginAcquisition()
+            cam.EndAcquisition()
+            cam.DeInit()
+            cam.Init()
+            cam.UserSetSelector.SetValue(PySpin.UserSetSelector_Default)
+            cam.UserSetLoad()
+            # Retrieve GenICam nodemap
+            #print(PySpin.IsWritable(nodemap.GetNode("AcquisitionFrameRateControlEnabled")))
+            #print(PySpin.IsWritable(nodemap.GetNode("AcquisitionFrameRate")))
+            #print(PySpin.IsWritable(nodemap.GetNode("randomstringofchars")))
+            node_acquisition_framerate = PySpin.CFloatPtr(nodemap.GetNode("AcquisitionFrameRate"))
+            framerate_to_set = node_acquisition_framerate.GetValue()
+            node_acquisition_framerate_enable = PySpin.CBooleanPtr(nodemap.GetNode("AcquisitionFrameRateEnabled"))
+            enable = node_acquisition_framerate_enable.GetValue()
+            node_acquisition_framerate_enable.SetValue(True)
+            print(framerate_to_set, enable)
+            node_acquisition_framerate.SetValue(10.0)
+            #node_fps = PySpin.CFloatPtr(nodemap.GetNode("AcquisitionFrameRate"))
+            #node_fps.SetValue(100.0)
+            """
+            
             setup(cam, nodemap, nodemap_tldevice)
             print("setup is done.")
 
@@ -178,37 +200,49 @@ class Server:
                     f"entering video function (but still in take video) {subtr_seconds(self.at_time)} seconds before time")
 
                 if self.type_of_video == 0:
-                    pass  # no video (?)
+                    duration = None
                 elif self.type_of_video == 1:
                     duration = 1
                 elif self.type_of_video == 2:
-                    duration = 108000
+                    duration = 30
 
                 i = 0
-
+                
                 while self.timer.formatted_time(self.timer.now()) != self.at_time:
                     pass
 
-                end_time = simple_time(
-                    self.timer.formatted_time(self.timer.now())) + duration
+                if duration != None:
+                    end_time = simple_time(
+                        self.timer.formatted_time(self.timer.now())) + duration
+    
+                    print(
+                        f"error in video start is {subtr_seconds(self.at_time)} seconds")
+                    vid_name = "-".join(str(self.timer.formatted_time(self.timer.now())
+                                            ).strip("[]").split(", "))
+                    
+                    if self.type_of_video == 1:
+                        result = cv2.VideoWriter(f'{vid_name}.avi',
+                                                 cv2.VideoWriter_fourcc(*'MJPG'),
+                                                 285, (FRAME_WIDTH, FRAME_HEIGHT), False)
+                    else:
+                        result = cv2.VideoWriter(f'{vid_name}.avi',
+                                                 cv2.VideoWriter_fourcc(*'MJPG'),
+                                                 30, (FRAME_WIDTH, FRAME_HEIGHT), False)
+                    
+                    print(self.timer.formatted_time(self.timer.now()))
 
-                print(
-                    f"error in video start is {subtr_seconds(self.at_time)} seconds")
-                vid_name = "-".join(str(self.timer.formatted_time(self.timer.now())
-                                        ).strip("[]").split(", "))
-                result = cv2.VideoWriter(f'{vid_name}.avi',
-                                         cv2.VideoWriter_fourcc(*'MJPG'),
-                                         15, (1760, 1200), False)
+                    while (simple_time(self.timer.formatted_time(self.timer.now())) < end_time):
+                        image = get_image(cam)
+                        result.write(image)
+    
+                        i += 1
+                    print(self.timer.formatted_time(self.timer.now()))
 
-                while (simple_time(self.timer.formatted_time(self.timer.now())) < end_time):
-                    image = get_image(cam)
-                    result.write(image)
-
-                    i += 1
-
-                print(
-                    f"error in video end is {subtr_seconds(self.at_time) + duration} seconds")
-
+                    print(i)
+    
+                    print(
+                        f"error in video end is {subtr_seconds(self.at_time) + duration} seconds")
+    
                 self.counter += 1
 
             cam.EndAcquisition()

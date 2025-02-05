@@ -49,8 +49,8 @@ import subprocess
 global continue_recording
 continue_recording = True
 
-FRAME_HEIGHT, FRAME_WIDTH = 1200, 1920
-
+#FRAME_HEIGHT, FRAME_WIDTH = 1200, 1920
+FRAME_HEIGHT, FRAME_WIDTH = 660, 1088
 raw_data = np.zeros((FRAME_HEIGHT, FRAME_WIDTH, 3), dtype=np.float32)
 
 ex_fn = os.getcwd()
@@ -166,7 +166,10 @@ def setup_elements():
                 dpg.hide_item(line)
             
             with dpg.group(label="post line buttons", pos=[shift,0]) as post_line:
-                dpg.add_button(label="Save ROIs", callback=state_manager.roi_interface.save_rois)
+                with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.roi_interface.save_rois, id="roi_gen_save_file", width=700 ,height=400, default_path = curr_dir, default_filename = curr_name):
+                    dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
+                    
+                dpg.add_button(label="Save ROIs",  callback=lambda: dpg.show_item("roi_gen_save_file"))#callback=state_manager.roi_interface.save_rois)
                 dpg.add_button(label="Clear Screen and Start Over", callback=__restart)
     
             dpg.hide_item(post_line)
