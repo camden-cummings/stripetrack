@@ -132,15 +132,23 @@ class LineInterface:
 
 
         """
+        closest = ()
         for line in self.lines:  # for each line on the screen
             # get x and y data points
             config_dict = dpg.get_item_configuration(line)
 
             for point_num in range(1, 3, 1):
                 x, y = config_dict["p"+str(point_num)]
-                if math.dist((x, y), mouse_posn) < self.hypotenuse/16:
-                    self.drag_line = line
-                    self.drag_point = point_num
+                dist = math.dist((x, y), mouse_posn)
+                if dist < self.hypotenuse/16:
+                    if closest != ():
+                        if dist < closest[1]:
+                            closest = ((line, point_num), dist)
+                    else:
+                        closest = ((line, point_num), dist)
+        if closest != ():
+            self.drag_line = closest[0][0]
+            self.drag_point = closest[0][1]
 
     def check_for_hover(self):
         """Check if mouse hovering over poly or poly vertex."""
@@ -153,8 +161,8 @@ class LineInterface:
             p2 = config_dict["p2"]
 
             line_centr = ((p1[0]+p2[0])/2, (p1[1]+p2[1])/2)
-            # TODO: change to a value that changes with size of canvas
-            if math.dist(line_centr, mouse_posn) < 20:
+
+            if math.dist(line_centr, mouse_posn) < self.hypotenuse/16:
                 points = [p1, p2]
                 line_num = line
 
