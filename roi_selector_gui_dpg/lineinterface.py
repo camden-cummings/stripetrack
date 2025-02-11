@@ -121,7 +121,13 @@ class LineInterface:
                 dpg.configure_item(self.drag_line, p1=[dr_x, mouse_posn[1]])
             else:
                 dpg.configure_item(self.drag_line, p2=[dr_x, mouse_posn[1]])
-
+                
+    def move_line_by_middle(self): #TODO: complete
+        pass
+    
+    def shift_all_lines(self): #TODO: complete
+        pass
+    
     def check_for_selection(self, mouse_posn: tuple[int, int]):
         """
         Checks if one of the vertices of the line is being selected.
@@ -137,7 +143,7 @@ class LineInterface:
             # get x and y data points
             config_dict = dpg.get_item_configuration(line)
 
-            for point_num in range(1, 3, 1):
+            for point_num in range(1, 3, 1): #TODO: also check for middle point of line 
                 x, y = config_dict["p"+str(point_num)]
                 dist = math.dist((x, y), mouse_posn)
                 if dist < self.hypotenuse/16:
@@ -149,7 +155,7 @@ class LineInterface:
         if closest != ():
             self.drag_line = closest[0][0]
             self.drag_point = closest[0][1]
-
+    
     def check_for_hover(self):
         """Check if mouse hovering over poly or poly vertex."""
         mouse_posn = dpg.get_mouse_pos()
@@ -183,6 +189,10 @@ class LineInterface:
             dpg.delete_item(hovered_line)
             self.lines.remove(hovered_line)
 
+    def undo(self): #TODO: complete
+        """Undo last action taken."""
+        pass
+    
     def load_lines(self, _, app_data: dict):
         with open(app_data["file_path_name"], 'rb') as filename:
             lines = pickle.load(filename)
@@ -192,7 +202,6 @@ class LineInterface:
                     255, 0, 0, 255), parent=self.window)
                 self.lines.append(loaded_line)
 
-    # TODO change to being able to save to filename specified
     def save_lines(self, path):
         with open(path[:-4] + ".lines", 'wb') as filename:
             new_lines = []
