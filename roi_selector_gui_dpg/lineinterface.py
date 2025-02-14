@@ -21,13 +21,15 @@ class LineInterface:
         self.lines = []
         self.drag_point = None
         self.drag_line = None
-
+        self.middle_drag_line = None
+        
         self.frame_height = frame_height
         self.frame_width = frame_width
         self.window = window
 
         self.last = (False, False)
-
+        self.last_mouse_posn = None
+        
         self.hor_lines = 1
         self.vert_lines = 1
 
@@ -62,17 +64,24 @@ class LineInterface:
 
             if (0 <= mouse_posn[0] <= self.frame_width) and (0 <= mouse_posn[1] <= self.frame_height):
                 self.move_line(mouse_posn)
+        
+        elif self.middle_drag_line is not None:
+            mouse_posn = dpg.get_mouse_pos()
 
+            if (0 <= mouse_posn[0] <= self.frame_width) and (0 <= mouse_posn[1] <= self.frame_height):
+                self.move_line_by_middle(mouse_posn)
+        
     def left_mouse_press_callback(self):
         """When user clicks, check if there's a line nearby to begin dragging."""
         mouse_posn = dpg.get_mouse_pos()
 
-        if self.drag_line is None:  # we haven't selected a point to drag
+        if self.drag_line is None and self.middle_drag_line is None:  # we haven't selected a point to drag
             self.check_for_selection(mouse_posn)
 
     def left_mouse_release_callback(self):
         """When mouse is released, no longer dragging line."""
         self.drag_line = None
+        self.middle_drag_line = None
 
     def num_of_vert_lines_changer(self, _, data):
         """Keep desired number of vertical lines updated as it is changed in text box."""
@@ -121,7 +130,25 @@ class LineInterface:
                 dpg.configure_item(self.drag_line, p1=[dr_x, mouse_posn[1]])
             else:
                 dpg.configure_item(self.drag_line, p2=[dr_x, mouse_posn[1]])
+                
+    def move_line_by_middle(self, mouse_posn: tuple[int, int]):
+        """Moves selected line around using middle point as handle."""
+        dx = self.last_mouse_posn[0] - mouse_posn[0]
+        dy = self.last_mouse_posn[1] - mouse_posn[1]
 
+        config_dict = dpg.get_item_configuration(self.middle_drag_line)
+        p1 = config_dict["p1"]
+        p2 = config_dict["p2"]
+        
+        #if p1[0] == 0.0 and p1[1] == self.
+        if abs(dx) > abs(dy) and p1[0] != 0.0 and p1[0] != self.frame_width and p2[0] != 0.0 and p2[0] != self.frame_width:
+            dpg.configure_item(self.middle_drag_line, p1=[p1[0]-dx, p1[1]], p2 = [p2[0]-dx, p2[1]])
+        elif abs(dy) > abs(dx) and p1[1] != 0.0 and p1[1] != self.frame_height and p2[1] != 0.0 and p2[1] != self.frame_height:
+            dpg.configure_item(self.middle_drag_line, p1=[p1[0], p1[1]-dy], p2 = [p2[0], p2[1]-dy])
+
+        self.last_mouse_posn = mouse_posn
+        
+    
     def check_for_selection(self, mouse_posn: tuple[int, int]):
         """
         Checks if one of the vertices of the line is being selected.
@@ -132,16 +159,36 @@ class LineInterface:
 
 
         """
+        closest = ()
         for line in self.lines:  # for each line on the screen
             # get x and y data points
             config_dict = dpg.get_item_configuration(line)
-
+            
+            x_ = 0
+            y_ = 0
             for point_num in range(1, 3, 1):
                 x, y = config_dict["p"+str(point_num)]
-                if math.dist((x, y), mouse_posn) < self.hypotenuse/16:
-                    self.drag_line = line
-                    self.drag_point = point_num
+                x_ += x
+                y_ += y
+                dist = math.dist((x, y), mouse_posn)
+                if dist < self.hypotenuse/16:
+                    if closest != ():
+                        if dist < closest[1]:
+                            closest = ((line, point_num), dist)
+                    else:
+                        closest = ((line, point_num), dist)
+                        
+            middle_point = [int(x_/2), int(y_/2)]
+            
+            if math.dist(middle_point, mouse_posn) < self.hypotenuse/16:
+                self.middle_drag_line = line
+                self.last_mouse_posn = mouse_posn
 
+
+        if closest != ():
+            self.drag_line = closest[0][0]
+            self.drag_point = closest[0][1]
+    
     def check_for_hover(self):
         """Check if mouse hovering over poly or poly vertex."""
         mouse_posn = dpg.get_mouse_pos()
@@ -153,8 +200,8 @@ class LineInterface:
             p2 = config_dict["p2"]
 
             line_centr = ((p1[0]+p2[0])/2, (p1[1]+p2[1])/2)
-            # TODO: change to a value that changes with size of canvas
-            if math.dist(line_centr, mouse_posn) < 20:
+
+            if math.dist(line_centr, mouse_posn) < self.hypotenuse/16:
                 points = [p1, p2]
                 line_num = line
 
@@ -175,6 +222,10 @@ class LineInterface:
             dpg.delete_item(hovered_line)
             self.lines.remove(hovered_line)
 
+    def undo(self): #TODO: complete
+        """Undo last action taken."""
+        pass
+    
     def load_lines(self, _, app_data: dict):
         with open(app_data["file_path_name"], 'rb') as filename:
             lines = pickle.load(filename)
@@ -184,7 +235,6 @@ class LineInterface:
                     255, 0, 0, 255), parent=self.window)
                 self.lines.append(loaded_line)
 
-    # TODO change to being able to save to filename specified
     def save_lines(self, path):
         with open(path[:-4] + ".lines", 'wb') as filename:
             new_lines = []

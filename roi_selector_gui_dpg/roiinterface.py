@@ -12,7 +12,7 @@ import numpy as np
 import dearpygui.dearpygui as dpg
 from shapely.geometry import Point, Polygon
 
-from roi_selector_gui_dpg.roipoly import RoiPoly
+from roipoly import RoiPoly
 
 class ROIInterface:
     """Defines useful methods for interacting (moving, rotating) polygons."""
@@ -117,20 +117,30 @@ class ROIInterface:
         dpg.configure_item(self.selected_polygon.poly,
                            points=self.selected_polygon.lines)
 
-    def save_rois(self, _, app_data):  # TODO change to being able to save to filename specified
+    def convert_rois_to_lines(self, rois):
+        lines = []
+        for roi in rois:
+            lines.append(roi.lines)
+        return lines
+        
+    def convert_lines_to_rois(self, lines):
+        new_rois = []
+        for line in lines:
+            new_rois.append(
+                RoiPoly(self.window, self.frame_width, self.frame_height, line))
+
+        self.rois.extend(new_rois)
+    
+    def save_rois(self, _, app_data: dict): 
         with open(app_data["file_path_name"], 'wb') as filename:
-            pickle.dump(self.rois, filename)
+            lines = self.convert_rois_to_lines(self.rois)
+            pickle.dump(lines, filename)
 
     def load_rois(self, _, app_data: dict):
         with open(app_data["file_path_name"], 'rb') as filename:
-            rois = pickle.load(filename)
-
-        new_rois = []
-        for roi in rois:
-            new_rois.append(
-                RoiPoly(self.window, self.frame_width, self.frame_height, roi.lines))
-
-        self.rois.extend(new_rois)
+            lines = pickle.load(filename)
+        
+        self.convert_lines_to_rois(lines)
         
     def find_future_posn(self, cursor_posn: tuple[int, int], centr: tuple[int, int]) \
             -> tuple[tuple[int, int], tuple[int, int]]:
