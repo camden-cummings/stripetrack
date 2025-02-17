@@ -12,11 +12,11 @@ import numpy as np
 import dearpygui.dearpygui as dpg
 from shapely.geometry import Point, Polygon
 
-from roipoly import RoiPoly
+from roi_selector_gui_dpg.roipoly import RoiPoly
 
 class ROIInterface:
     """Defines useful methods for interacting (moving, rotating) polygons."""
-    def __init__(self, frame_height, frame_width, window):
+    def __init__(self, frame_height, frame_width, window, shift):
         self.rois = []
         self.selected_polygon = None
         self.selected_polygon_vert = None
@@ -24,17 +24,18 @@ class ROIInterface:
         self.frame_width = frame_width
         self.frame_height = frame_height
         self.window = window
-    
+        self.shift = shift
+        
     def left_mouse_press_callback(self):
         """When mouse clicked, checks if current mouse position is near to a polygon or a polygon vertex."""
-        x, y = dpg.get_mouse_pos()
+        x, y = self.get_mouse_pos()
 
         if self.drag_polygon is None and self.selected_polygon_vert is None:
             self.check_for_selection((x, y))
 
     def motion_notify_callback(self):
         """When mouse moving, if drag polygon, moves, if selected polygon vert, rotates."""
-        x, y = dpg.get_mouse_pos()
+        x, y = self.get_mouse_pos()
 
         if self.drag_polygon is not None:
             self.move()
@@ -72,7 +73,7 @@ class ROIInterface:
 
     def check_for_hover(self):
         """Check if mouse hovering over poly or poly vertex."""
-        mouse_pos = dpg.get_mouse_pos()
+        mouse_pos = self.get_mouse_pos()
         for roi in self.rois:
             mouse_pt = Point(mouse_pos)
             n_poly = Polygon(roi.lines)
@@ -83,18 +84,17 @@ class ROIInterface:
 
     def move(self):
         """Move polygon to current mouse position."""
-        x, y = dpg.get_mouse_pos()
-
+        x, y = self.get_mouse_pos()
         poly = self.drag_polygon.lines
         centr = Polygon(poly).centroid
 
         translated_poly = [[p[0] - centr.x + x, p[1] - centr.y + y]
                            for p in poly]
-
+        
         for point in translated_poly:
-            if point[0] > self.frame_width or 0 > point[0]:
+            if point[0] > self.shift[0]+self.frame_width or self.shift[0] > point[0]:
                 break
-            elif point[1] > self.frame_height or 0 > point[1]:
+            elif point[1] > self.shift[1]+self.frame_height or self.shift[1] > point[1]:
                 break
         else:
             self.drag_polygon.lines = translated_poly
@@ -120,14 +120,25 @@ class ROIInterface:
     def convert_rois_to_lines(self, rois):
         lines = []
         for roi in rois:
-            lines.append(roi.lines)
+            l = roi.lines
+            poly = []
+            
+            for i in l:
+                poly.append([i[0]-self.shift[0], i[1]-self.shift[1]])
+                
+            lines.append(poly)
         return lines
         
     def convert_lines_to_rois(self, lines):
         new_rois = []
         for line in lines:
+            poly_lines = []
+            
+            for point in line:
+                poly_lines.append([point[0]+self.shift[0], point[1]+self.shift[1]])
+            
             new_rois.append(
-                RoiPoly(self.window, self.frame_width, self.frame_height, line))
+                RoiPoly(self.window, self.frame_width, self.frame_height, self.shift, poly_lines))
 
         self.rois.extend(new_rois)
     
@@ -213,3 +224,8 @@ class ROIInterface:
                     theta = -theta
 
         return theta
+
+    def get_mouse_pos(self):
+        x, y = dpg.get_mouse_pos()
+        
+        return x+self.shift[0], y+self.shift[1]

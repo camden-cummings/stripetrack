@@ -7,14 +7,14 @@ Created on Thu Jan 30 14:55:53 2025
 """
 import dearpygui.dearpygui as dpg
 
-from roipoly import RoiPoly
-from roiinterface import ROIInterface
-from lineinterface import LineInterface
+from roi_selector_gui_dpg.roipoly import RoiPoly
+from roi_selector_gui_dpg.roiinterface import ROIInterface
+from roi_selector_gui_dpg.lineinterface import LineInterface
 
 class StateManager:
     """Makes sure in correct state when necessary."""
 
-    def __init__(self, frame_width, frame_height, window):
+    def __init__(self, frame_width, frame_height, window, shift=(0,0)):
         self.inactive = True
         self.current_roi = None
         self.ROI = True
@@ -22,9 +22,11 @@ class StateManager:
 
         self.frame_height = frame_height
         self.frame_width = frame_width
-        self.roi_interface = ROIInterface(frame_height, frame_width, window)
-        self.line_interface = LineInterface(frame_height, frame_width, window)
-
+        self.roi_interface = ROIInterface(frame_height, frame_width, window, shift)
+        self.line_interface = LineInterface(frame_height, frame_width, window, shift)
+        
+        self.shift = shift
+        
         self.window = window
 
     def left_mouse_press_callback(self):
@@ -57,7 +59,7 @@ class StateManager:
             dpg.configure_item(self.current_roi, points=[])
 
         self.current_roi = RoiPoly(
-            self.window, self.frame_width, self.frame_height)
+            self.window, self.frame_width, self.frame_height, self.shift)
         self.inactive = False
 
     def release(self):
@@ -78,9 +80,9 @@ class StateManager:
         """Make ROIs."""
         rois = []
         for i in range(len(shortened_contours)):
-            n_l = [[int(j[0]), int(j[1])] for j in shortened_contours[i]]
+            n_l = [[int(j[0]+self.shift[0]), int(j[1]+self.shift[1])] for j in shortened_contours[i]]
             roi = RoiPoly(self.window, self.frame_width,
-                          self.frame_height, lines=n_l)
+                          self.frame_height, self.shift, lines=n_l)
             rois.append(roi)
         return rois
 
@@ -91,7 +93,6 @@ class StateManager:
 
         self.line_interface.lines.clear()
 
-        print(self.roi_interface.rois)
         for roi in self.roi_interface.rois:
             dpg.delete_item(roi.poly)
 
