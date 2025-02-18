@@ -28,6 +28,8 @@ from roi_selector_gui_dpg.statemanager import StateManager
 
 import subprocess
 
+from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode
+
 global continue_recording
 
 #from tracker.structural_similarity_tracker import StructuralSimilarityTracker
@@ -234,6 +236,7 @@ dpg.create_viewport(width=int(FRAME_WIDTH*1.5), height=FRAME_HEIGHT+20, title="R
 dpg.setup_dearpygui()
 dpg.show_viewport()
 
+"""
 def CV(image, image_data, frame_counter):
     if len(moviedeq) < 50:
         moviedeq.append(image)
@@ -268,7 +271,7 @@ def CV(image, image_data, frame_counter):
             rt_tracker.MIN_AREA = c.centroid_size
             sharpened_contours, contour_img = rt_tracker.new_CV(image, min_thresh = c.thresh)
             cv2.drawContours(image_data, sharpened_contours, -1, (0, 255, 0), 1)  # RED
-
+"""
 
 def process_command_string(cmd_string: pd.DataFrame) -> [list[str], str, int]:
     """Converts a command into separate pieces."""
@@ -284,84 +287,6 @@ def process_command_string(cmd_string: pd.DataFrame) -> [list[str], str, int]:
 
     return at_time, arduino_command, video_type
 
-def setup(system):
-    # Get current library version
-    version = system.GetLibraryVersion()
-    print('Library version: %d.%d.%d.%d' % (version.major, version.minor, version.type, version.build))
-
-    # Retrieve list of cameras from the system
-    cam_list = system.GetCameras()
-
-    num_cameras = cam_list.GetSize()
-
-    print('Number of cameras detected: %d' % num_cameras)
-
-    # Finish if there are no cameras
-    if num_cameras == 0:
-
-        # Clear camera list before releasing system
-        cam_list.Clear()
-
-        # Release system instance
-        system.ReleaseInstance()
-
-        print('Not enough cameras!')
-        input('Done! Press Enter to exit...')
-        return None
-    
-    return cam_list
-
-def setup_nodemap(cam):
-    nodemap_tldevice = cam.GetTLDeviceNodeMap()
-
-    # Initialize camera
-    cam.Init()
-
-    # Retrieve GenICam nodemap
-    nodemap = cam.GetNodeMap()
-
-    sNodemap = cam.GetTLStreamNodeMap()
-
-    # Change bufferhandling mode to NewestOnly
-    node_bufferhandling_mode = PySpin.CEnumerationPtr(sNodemap.GetNode('StreamBufferHandlingMode'))
-    if not PySpin.IsReadable(node_bufferhandling_mode) or not PySpin.IsWritable(node_bufferhandling_mode):
-        print('Unable to set stream buffer handling mode.. Aborting...')
-        return False
-
-    # Retrieve entry node from enumeration node
-    node_newestonly = node_bufferhandling_mode.GetEntryByName('NewestOnly')
-    if not PySpin.IsReadable(node_newestonly):
-        print('Unable to set stream buffer handling mode.. Aborting...')
-        return False
-
-    # Retrieve integer value from entry node
-    node_newestonly_mode = node_newestonly.GetValue()
-
-    # Set integer value from entry node as new value of enumeration node
-    node_bufferhandling_mode.SetIntValue(node_newestonly_mode)
-    
-    return nodemap, nodemap_tldevice
-
-def set_node_acquisition_mode(nodemap):
-    node_acquisition_mode = PySpin.CEnumerationPtr(nodemap.GetNode('AcquisitionMode'))
-    if not PySpin.IsReadable(node_acquisition_mode) or not PySpin.IsWritable(node_acquisition_mode):
-        print('Unable to set acquisition mode to continuous (enum retrieval). Aborting...')
-        return False
-
-    # Retrieve entry node from enumeration node
-    node_acquisition_mode_continuous = node_acquisition_mode.GetEntryByName('Continuous')
-    if not PySpin.IsReadable(node_acquisition_mode_continuous):
-        print('Unable to set acquisition mode to continuous (entry retrieval). Aborting...')
-        return False
-
-    # Retrieve integer value from entry node
-    acquisition_mode_continuous = node_acquisition_mode_continuous.GetValue()
-
-    # Set integer value from entry node as new value of enumeration node
-    node_acquisition_mode.SetIntValue(acquisition_mode_continuous)
-
-    print('Acquisition mode set to continuous...')
-    
 def video():
     # Retrieve singleton reference to system object
     system = PySpin.System.GetInstance()
@@ -448,7 +373,7 @@ def video():
                     
                     moviedeq.append(image)
  
-                    CV(image, image_data, frame_counter)
+                    #CV(image, image_data, frame_counter)
                     
                     data = np.flip(image_data, 2)
                     data = data.ravel()
