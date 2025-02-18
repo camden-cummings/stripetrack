@@ -81,6 +81,7 @@ class StateManager:
             n_l = [[int(j[0]), int(j[1])] for j in shortened_contours[i]]
             roi = RoiPoly(self.window, self.frame_width,
                           self.frame_height, lines=n_l)
+            roi.finish_roi()
             rois.append(roi)
         return rois
 
@@ -96,6 +97,14 @@ class StateManager:
             dpg.delete_item(roi.poly)
 
         self.roi_interface.rois.clear()
+        
+    def roi_slider_size(self, _, allowed_area): #TODO allow slider
+        self.roi_interface.allowed_area = allowed_area
+        for roi in self.roi_interface.rois:
+            if roi.area < allowed_area:
+                dpg.hide_item(roi.poly)
+            else:
+                dpg.show_item(roi.poly)
 
     def copy(self, _, __):
         if self.ROI and self.ctrl_has_been_pressed:
@@ -121,3 +130,35 @@ class StateManager:
 
         else:
             self.line_interface.delete()
+
+    def w(self, _, __):
+        self.move_line(0, 1)
+        
+    def a(self, _, __):
+        self.move_line(1, 0)
+
+    def s(self, _, __):
+        self.move_line(0, -1)        
+
+    def d(self, _, __):
+        self.move_line(-1, 0)
+
+
+    def move_line(self, dx, dy):
+        for line in self.line_interface.lines:
+            config_dict = dpg.get_item_configuration(line)
+            
+            for point_num in range(1, 3, 1): 
+                x, y = config_dict["p"+str(point_num)]
+                
+                if x == self.frame_width or x == 0.0:
+                    if point_num == 1:
+                        dpg.configure_item(line, p1=[x, y-dy])
+                    else:
+                        dpg.configure_item(line, p2=[x, y-dy])
+                
+                elif y == self.frame_height or y == 0.0:
+                    if point_num == 1:
+                        dpg.configure_item(line, p1=[x-dx, y])
+                    else:
+                        dpg.configure_item(line, p2=[x-dx, y])

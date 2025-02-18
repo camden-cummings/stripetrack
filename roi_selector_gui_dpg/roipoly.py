@@ -7,6 +7,7 @@ Created on Fri Jan 24 12:22:20 2025
 """
 import dearpygui.dearpygui as dpg
 
+from shapely.geometry import Polygon
 
 class RoiPoly:
     """Defines point-by-point selected polygon."""
@@ -15,7 +16,9 @@ class RoiPoly:
         self.line = None
         self.lines = []
         self.poly = None
-
+        
+        self.area = None
+        
         self.completed = False
 
         self.previous_point = []
@@ -30,6 +33,9 @@ class RoiPoly:
             self.completed = True
             self.poly = dpg.draw_polyline(points=self.lines, color=(
                 255, 0, 0, 255), thickness=1, parent=self.window, closed=True)
+    
+    def finish_roi(self):
+        self.area = Polygon(self.lines).area
 
     def left_mouse_press_callback(self):
         """Add new vertex to the polygon."""
@@ -58,7 +64,9 @@ class RoiPoly:
         if len(self.lines) > 3:
             self.lines = self.lines[:-1]
             dpg.configure_item(self.poly, points=self.lines, closed=True)
+            self.finish_roi()
             self.completed = True
+            
 
     def motion_notify_callback(self):
         """When mouse is moving, update position of currently selected line."""

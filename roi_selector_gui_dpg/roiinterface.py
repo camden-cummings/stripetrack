@@ -24,6 +24,7 @@ class ROIInterface:
         self.frame_width = frame_width
         self.frame_height = frame_height
         self.window = window
+        self.allowed_area = 0.0
     
     def left_mouse_press_callback(self):
         """When mouse clicked, checks if current mouse position is near to a polygon or a polygon vertex."""
@@ -58,18 +59,29 @@ class ROIInterface:
 
     def check_for_selection(self, mouse_pos):
         """Check if mouse down on poly or poly vertex."""
+        closest = ()
         for poly in self.rois:
             mouse_pt = Point(mouse_pos)
             n_poly = Polygon(poly.lines)
 
             if mouse_pt.within(n_poly):
                 self.drag_polygon = poly
-
+                
             for point in poly.lines:
-                if math.dist(point, mouse_pos) < 40:  # if
-                    self.selected_polygon_vert = point
-                    self.selected_polygon = poly
+                dist = math.dist(point, mouse_pos)
 
+                if dist < 40:  # if
+                    if closest != ():
+                        if dist < closest[1]:
+                            closest = ((poly, point), dist)
+                    else:
+                        closest = ((poly, point), dist)
+
+
+        if closest != ():        
+            self.selected_polygon_vert = point
+            self.selected_polygon = poly 
+            
     def check_for_hover(self):
         """Check if mouse hovering over poly or poly vertex."""
         mouse_pos = dpg.get_mouse_pos()
@@ -132,8 +144,15 @@ class ROIInterface:
         self.rois.extend(new_rois)
     
     def save_rois(self, _, app_data: dict): 
+        print(app_data)
         with open(app_data["file_path_name"], 'wb') as filename:
-            lines = self.convert_rois_to_lines(self.rois)
+            allowed_rois = []
+            
+            for roi in self.rois:
+                if roi.area > self.allowed_area:
+                    allowed_rois.append(roi)
+            
+            lines = self.convert_rois_to_lines(allowed_rois)
             pickle.dump(lines, filename)
 
     def load_rois(self, _, app_data: dict):
