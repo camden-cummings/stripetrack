@@ -37,7 +37,7 @@ FRAME_HEIGHT, FRAME_WIDTH = 660, 1088
 raw_data = np.zeros((FRAME_HEIGHT, FRAME_WIDTH, 3), dtype=np.float32)
 
 moviedeq = []
-mode_noblur_img = None
+mode_noblur_img = np.zeros((FRAME_WIDTH, FRAME_HEIGHT))
 
 dpg.create_context()
 
@@ -131,104 +131,109 @@ def tab_callback(_, tab_id):
     
 
 #generate_row_col(shape_of_rows)
+
+def gui_init():
+    with dpg.texture_registry(show=False):
+        dpg.add_raw_texture(FRAME_WIDTH, FRAME_HEIGHT, raw_data, format=dpg.mvFormat_Float_rgb, tag="texture_tag")
     
-with dpg.texture_registry(show=False):
-    dpg.add_raw_texture(FRAME_WIDTH, FRAME_HEIGHT, raw_data, format=dpg.mvFormat_Float_rgb, tag="texture_tag")
-
-right_shift = FRAME_WIDTH+10
-std_shift = 8
-with dpg.theme() as canvas_theme, dpg.theme_component():
-    dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 0,0)
-
-with dpg.window(label="Video player", pos=(0,0), width = FRAME_WIDTH, height=FRAME_HEIGHT+150) as window:    
-    with dpg.tab_bar(label="Select", callback=tab_callback):
-        with dpg.tab(label='ROI Selection'):
-            state_manager = StateManager(FRAME_WIDTH, FRAME_HEIGHT, window, shift=(0,23))
+    right_shift = FRAME_WIDTH+10
+    std_shift = 8
+    
+    with dpg.theme() as canvas_theme, dpg.theme_component():
+        dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 0,0)
+    
+    with dpg.window(label="Video player", pos=(0,0), width = FRAME_WIDTH, height=FRAME_HEIGHT+150) as window:    
+        with dpg.tab_bar(label="Select", callback=tab_callback):
+            with dpg.tab(label='ROI Selection'):
+                state_manager = StateManager(FRAME_WIDTH, FRAME_HEIGHT, window, shift=(0,23))
+                
+                with dpg.handler_registry():
+                    dpg.add_mouse_move_handler(callback=state_manager.motion_notify_callback)
+                    dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Left, callback=state_manager.release)
+                    dpg.add_mouse_click_handler(button=dpg.mvMouseButton_Left, callback=state_manager.left_mouse_press_callback)
+                    dpg.add_mouse_click_handler(button=dpg.mvMouseButton_Right, callback=state_manager.right_mouse_press_callback)
+                    dpg.add_key_press_handler(key=dpg.mvKey_C, callback=state_manager.copy)
+                    dpg.add_key_press_handler(key=dpg.mvKey_LControl, callback=state_manager.control)
+                    dpg.add_key_press_handler(key=dpg.mvKey_Delete, callback=state_manager.delete)
+                    
+                with dpg.child_window(border=False):
+                    with dpg.group() as roi_and_line_selection:
+                        dpg.add_combo(("ROI", "Line"), label="Mode", width=50, pos=[right_shift,0], callback=__change, default_value="ROI")
+                        dpg.add_button(label="START", callback=__start_movies_and_stimuli)
+                        
+                        path = Path(os.getcwd())
+    
+                        with dpg.group(label="roi buttons", pos=[right_shift,25]) as roi: #ROI Mode Buttons
+                            dpg.add_button(label="New ROI", callback=state_manager.new_roi)
+                            
+                            curr_dir = path.parent
+                            curr_name = str(path.stem)
+                            
+                            with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.roi_interface.load_rois, id="roi_load_file", width=700 ,height=400, default_path = curr_dir, default_filename = curr_name):
+                                dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
+                                
+                            dpg.add_button(label="Load ROI File", callback=lambda: dpg.show_item("roi_load_file"))
+                    
+                            with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.roi_interface.save_rois, id="roi_save_file", width=700 ,height=400, default_path = curr_dir, default_filename = curr_name):
+                                dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
+                            
+                            dpg.add_button(label="Save ROIs", callback=lambda: dpg.show_item("roi_save_file"))
+                            
+                            dpg.add_button(label="Auto Generate ROIs", callback=state_manager.auto_gen_rois)
+                            
+                            dpg.add_text("NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete", pos=(right_shift+5, 125), wrap=150)
+                        
             
-            with dpg.handler_registry():
-                dpg.add_mouse_move_handler(callback=state_manager.motion_notify_callback)
-                dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Left, callback=state_manager.release)
-                dpg.add_mouse_click_handler(button=dpg.mvMouseButton_Left, callback=state_manager.left_mouse_press_callback)
-                dpg.add_mouse_click_handler(button=dpg.mvMouseButton_Right, callback=state_manager.right_mouse_press_callback)
-                dpg.add_key_press_handler(key=dpg.mvKey_C, callback=state_manager.copy)
-                dpg.add_key_press_handler(key=dpg.mvKey_LControl, callback=state_manager.control)
-                dpg.add_key_press_handler(key=dpg.mvKey_Delete, callback=state_manager.delete)
-                
-            with dpg.child_window(border=False):
-                with dpg.group() as roi_and_line_selection:
-                    dpg.add_combo(("ROI", "Line"), label="Mode", width=50, pos=[right_shift,0], callback=__change, default_value="ROI")
-                    dpg.add_button(label="START", callback=__start_movies_and_stimuli)
+                        with dpg.group(label="line buttons", pos=[right_shift, 25]) as line:
+                            dpg.add_button(label="Vertical Line", callback=state_manager.line_interface.vertical_line_callback)
+                            vert = dpg.add_input_text(width=15, source="int_value", default_value=1, pos=[right_shift+104,25], callback=state_manager.line_interface.num_of_vert_lines_changer)
+                            dpg.add_button(label="Horizontal Line", callback=state_manager.line_interface.horizontal_line_callback)
+                            hor = dpg.add_input_text(width=15, source="int_value", default_value=1, pos=[right_shift+118,48], callback=state_manager.line_interface.num_of_hor_lines_changer)
+                            dpg.add_button(label="Generate ROIs", callback=__generate_rois)
+            
+                            with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.line_interface.save_lines, id="line_save_file", width=700 ,height=400):
+                                dpg.add_file_extension(".lines", color=(0, 255, 0, 255), custom_text="[Line Save File]")
+                                
+                            dpg.add_button(label="Save Line Configuration", callback="line_save_file")
+            
+                            with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.line_interface.load_lines, id="line_load_file", width=700 ,height=400):
+                                dpg.add_file_extension(".lines", color=(0, 255, 0, 255), custom_text="[Line Save File]")
+                            
+                            dpg.add_button(label="Load Line Configuration", callback=lambda: dpg.show_item("line_load_file"))
+            
+                            dpg.add_text("NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete", pos=(right_shift+5, 195), wrap=150)
+            
+                        dpg.hide_item(line)
                     
-                    path = Path(os.getcwd())
-
-                    with dpg.group(label="roi buttons", pos=[right_shift,25]) as roi: #ROI Mode Buttons
-                        dpg.add_button(label="New ROI", callback=state_manager.new_roi)
-                        
-                        curr_dir = path.parent
-                        curr_name = str(path.stem)
-                        
-                        with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.roi_interface.load_rois, id="roi_load_file", width=700 ,height=400, default_path = curr_dir, default_filename = curr_name):
+                    with dpg.group(label="post line buttons", pos=[right_shift,0]) as post_line:
+                        with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.roi_interface.save_rois, id="roi_gen_save_file", width=700 ,height=400, default_path = curr_dir, default_filename = curr_name):
                             dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
                             
-                        dpg.add_button(label="Load ROI File", callback=lambda: dpg.show_item("roi_load_file"))
+                        dpg.add_button(label="Save ROIs",  callback=lambda: dpg.show_item("roi_gen_save_file"))#callback=state_manager.roi_interface.save_rois)
+                        dpg.add_button(label="Clear Screen and Start Over", callback=__restart)
+            
+                    dpg.hide_item(post_line)
+    
+                dpg.add_image("texture_tag", pos=(std_shift, std_shift+23))
+            with dpg.tab(label='Contour Overlay'):
+                dpg.add_image("texture_tag")
                 
-                        with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.roi_interface.save_rois, id="roi_save_file", width=700 ,height=400, default_path = curr_dir, default_filename = curr_name):
-                            dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
-                        
-                        dpg.add_button(label="Save ROIs", callback=lambda: dpg.show_item("roi_save_file"))
-                        
-                        dpg.add_button(label="Auto Generate ROIs", callback=state_manager.auto_gen_rois)
-                        
-                        dpg.add_text("NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete", pos=(right_shift+5, 125), wrap=150)
-                    
-        
-                    with dpg.group(label="line buttons", pos=[right_shift, 25]) as line:
-                        dpg.add_button(label="Vertical Line", callback=state_manager.line_interface.vertical_line_callback)
-                        vert = dpg.add_input_text(width=15, source="int_value", default_value=1, pos=[right_shift+104,25], callback=state_manager.line_interface.num_of_vert_lines_changer)
-                        dpg.add_button(label="Horizontal Line", callback=state_manager.line_interface.horizontal_line_callback)
-                        hor = dpg.add_input_text(width=15, source="int_value", default_value=1, pos=[right_shift+118,48], callback=state_manager.line_interface.num_of_hor_lines_changer)
-                        dpg.add_button(label="Generate ROIs", callback=__generate_rois)
-        
-                        with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.line_interface.save_lines, id="line_save_file", width=700 ,height=400):
-                            dpg.add_file_extension(".lines", color=(0, 255, 0, 255), custom_text="[Line Save File]")
-                            
-                        dpg.add_button(label="Save Line Configuration", callback="line_save_file")
-        
-                        with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.line_interface.load_lines, id="line_load_file", width=700 ,height=400):
-                            dpg.add_file_extension(".lines", color=(0, 255, 0, 255), custom_text="[Line Save File]")
-                        
-                        dpg.add_button(label="Load Line Configuration", callback=lambda: dpg.show_item("line_load_file"))
-        
-                        dpg.add_text("NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete", pos=(right_shift+5, 195), wrap=150)
-        
-                    dpg.hide_item(line)
-                
-                with dpg.group(label="post line buttons", pos=[right_shift,0]) as post_line:
-                    with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.roi_interface.save_rois, id="roi_gen_save_file", width=700 ,height=400, default_path = curr_dir, default_filename = curr_name):
+                with dpg.group(pos = [right_shift, std_shift+23]):
+                    with dpg.file_dialog(directory_selector=False, show=False, callback=set_cells, id="set_rois", width=0 ,height=0):
                         dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
-                        
-                    dpg.add_button(label="Save ROIs",  callback=lambda: dpg.show_item("roi_gen_save_file"))#callback=state_manager.roi_interface.save_rois)
-                    dpg.add_button(label="Clear Screen and Start Over", callback=__restart)
-        
-                dpg.hide_item(post_line)
-
-            dpg.add_image("texture_tag", pos=(std_shift, std_shift+23))
-        with dpg.tab(label='Contour Overlay'):
-            dpg.add_image("texture_tag")
-            
-            with dpg.group(pos = [right_shift, std_shift+23]):
-                with dpg.file_dialog(directory_selector=False, show=False, callback=set_cells, id="set_rois", width=0 ,height=0):
-                    dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
-                
-                #dpg.add_checkbox(label = "Show ROIs", callback=):
-                
-                with dpg.tree_node(label="Basic", default_open=True):
-                    dpg.add_combo(("No Contours", "Structural Similarity", "Real Time"), label="Contour Detecting Algorithm", callback=c.cv_alg_change, default_value="No Contours", width=180)
-                    with dpg.group(width = 300):
-                        dpg.add_slider_float(label="Threshold", callback=c.threshold_change, min_value=0, max_value=255, default_value=c.thresh)            
-                        dpg.add_slider_float(label="Centroid Size", callback=c.centroid_change, max_value=1000, default_value=c.centroid_size)
-                
+                    
+                    #dpg.add_checkbox(label = "Show ROIs", callback=):
+                    
+                    with dpg.tree_node(label="Basic", default_open=True):
+                        dpg.add_combo(("No Contours", "Structural Similarity", "Real Time"), label="Contour Detecting Algorithm", callback=c.cv_alg_change, default_value="No Contours", width=180)
+                        with dpg.group(width = 300):
+                            dpg.add_slider_float(label="Threshold", callback=c.threshold_change, min_value=0, max_value=255, default_value=c.thresh)            
+                            dpg.add_slider_float(label="Centroid Size", callback=c.centroid_change, max_value=1000, default_value=c.centroid_size)
+                    
+        return window, state_manager, roi, line, roi_and_line_selection, post_line
     
+window, state_manager, roi, line, roi_and_line_selection, post_line = gui_init()
+
 dpg.set_primary_window(window, True)
 dpg.create_viewport(width=int(FRAME_WIDTH*1.5), height=FRAME_HEIGHT+20, title="ROI Selector")
 dpg.setup_dearpygui()
@@ -401,9 +406,6 @@ def video():
                 num_of_instructions = schedule_times.shape[0]
                 first_time = True
                 end_time = np.inf
-                
-                mode_noblur_img = np.zeros((FRAME_WIDTH, FRAME_HEIGHT))
-                
                 
                 frame_counter = 0
                 while counter < num_of_instructions and dpg.is_dearpygui_running():
