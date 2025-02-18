@@ -45,9 +45,7 @@ class VisibilityManager:
     def __start_movies_and_stimuli():
         print("go to arduino script here")
         subprocess.call("arduino filepath")
-    
-    def roi_slider_size(): #TODO allow slider
-        pass
+
     
     def setup_roi_buttons(self, shift, path, state_manager):
         with dpg.group(label="roi buttons", pos=[shift,25]) as roi: #ROI Mode Buttons
@@ -93,11 +91,26 @@ class VisibilityManager:
             
         return line
     
-    def setup_post_line_buttons(self, shift, state_manager):
+    def setup_post_line_buttons(self, shift, state_manager, path, frame_width, frame_height):
         with dpg.group(label="post line buttons", pos=[shift,0]) as post_line:
-            dpg.add_button(label="Save ROIs", callback=state_manager.roi_interface.save_rois)
-            dpg.add_button(label="Clear Screen and Start Over", callback=self.__restart)
+            curr_dir = path.parent
+            curr_name = str(path.stem)
+            
+            with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.roi_interface.save_rois, id="roi_post_save_file", width=700 ,height=400, default_path = curr_dir, default_filename = curr_name):
+                dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
+            
+            dpg.add_button(label="Save ROIs", callback=lambda: dpg.show_item("roi_post_save_file"))
 
+            dpg.add_button(label="Clear Screen and Start Over", callback=self.__restart)
+            
+            roi_slider = dpg.add_slider_double(
+                label="Allowed ROI Area",
+                width=100,
+                min_value=0.0,
+                max_value=frame_width*frame_height,
+                default_value=0.0,
+                callback=state_manager.roi_slider_size
+            )
         return post_line
     
     #TODO fill out description
@@ -121,6 +134,10 @@ class VisibilityManager:
                 dpg.add_key_press_handler(key=dpg.mvKey_C, callback=state_manager.copy)
                 dpg.add_key_press_handler(key=dpg.mvKey_LControl, callback=state_manager.control)
                 dpg.add_key_press_handler(key=dpg.mvKey_Delete, callback=state_manager.delete)
+                dpg.add_key_press_handler(key=dpg.mvKey_W, callback=state_manager.w)
+                dpg.add_key_press_handler(key=dpg.mvKey_A, callback=state_manager.a)
+                dpg.add_key_press_handler(key=dpg.mvKey_S, callback=state_manager.s)
+                dpg.add_key_press_handler(key=dpg.mvKey_D, callback=state_manager.d)
                 
             with dpg.child_window(border=False):
                 with dpg.group() as roi_and_line_selection:
@@ -133,13 +150,13 @@ class VisibilityManager:
                     line = self.setup_line_buttons(shift, state_manager)
                     dpg.hide_item(line)
                 
-                post_line = self.setup_post_line_buttons(shift, state_manager)
+                post_line = self.setup_post_line_buttons(shift, state_manager, path, frame_width, frame_height)
                 dpg.hide_item(post_line)
             
             dpg.add_image("texture_tag", pos=[8,8])
         
         dpg.set_primary_window(window, True)
-        dpg.create_viewport(width=int(frame_width*1.2), height=frame_height+20, title="ROI Selector")
+        dpg.create_viewport(width=int(frame_width+275), height=frame_height+20, title="ROI Selector")
         dpg.setup_dearpygui()
         dpg.show_viewport()
     
