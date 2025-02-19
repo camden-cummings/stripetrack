@@ -84,3 +84,9 @@ def set_node_acquisition_mode(nodemap):
 
     print('Acquisition mode set to continuous...')
     
+def get_device_serial_number(nodemap_tldevice):
+    device_serial_number = ''
+    node_device_serial_number = PySpin.CStringPtr(nodemap_tldevice.GetNode('DeviceSerialNumber'))
+    if PySpin.IsReadable(node_device_serial_number):
+        device_serial_number = node_device_serial_number.GetValue()
+        print('Device serial number retrieved as %s...' % device_serial_number)

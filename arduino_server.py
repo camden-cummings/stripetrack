@@ -1,4 +1,3 @@
-from time import time, perf_counter, get_clock_info, ctime
 import os
 from threading import Thread
 
@@ -8,41 +7,13 @@ import pandas as pd
 import PySpin
 
 from AcquireAndDisplayClass import setup, get_image
+from precise_time import PreciseTime
+import cProfile, pstats, io
+from pstats import SortKey
 
-dev = serial.Serial(port='COM11', baudrate=115200, timeout=.1)
+global continue_recording
 
-FRAME_HEIGHT, FRAME_WIDTH = 660, 1088
-
-class PreciseTime:
-    """Timer which tries to find most precise method of timing."""
-    # being paranoid and pulling some nice time code from here: https://github.com/hardbyte/python-can/pull/936
-    # to double check that time stamps will be as correct as possible
-
-    def __init__(self):
-        # use this if the resolution is higher than 10us
-        if get_clock_info("time").resolution > 1e-5:
-            t0 = time()
-            while True:
-                t1, performance_counter = time(), perf_counter()
-                if t1 != t0:
-                    break
-            self.time = t1
-            self.perfcounter = performance_counter
-        else:
-            self.time = time()
-            self.perfcounter = None  # not needed
-
-    @staticmethod
-    def formatted_time(input_time) -> list[int, int, int]:
-        """Returns time in [H, M, S] format."""
-        return [int(c) for c in ctime(input_time).split()[3].split(":")]
-
-    def now(self) -> float:
-        """Finds current time according to best timer."""
-        if self.perfcounter is None:
-            return time()
-        return self.time + (perf_counter() - self.perfcounter)
-
+continue_recording = True
 
 def simple_time(input_time):
     return input_time[0]*3600+input_time[1]*60+input_time[2]
@@ -75,6 +46,7 @@ class Server:
     def send_to_arduino(self):
         """Sends command string to arduino."""
         prev = -1
+        dev = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
 
         while self.counter < self.num_of_instructions:
             if self.counter != prev and self.counter < self.num_of_instructions:
@@ -149,6 +121,8 @@ class Server:
         system.ReleaseInstance()
 
     def run_single_camera(self, cam):
+        FRAME_HEIGHT, FRAME_WIDTH = 660, 1088
+
         """
         This function acts as the body of the example; please see NodeMapInfo example
         for more in-depth comments on setting up cameras.
@@ -159,7 +133,6 @@ class Server:
         :rtype: bool
         """
         print(f"enters run with {subtr_seconds(self.at_time)} seconds")
-
         try:
             nodemap_tldevice = cam.GetTLDeviceNodeMap()
 
@@ -175,6 +148,7 @@ class Server:
             cam.Init()
             cam.UserSetSelector.SetValue(PySpin.UserSetSelector_Default)
             cam.UserSetLoad()
+            """
             # Retrieve GenICam nodemap
             #print(PySpin.IsWritable(nodemap.GetNode("AcquisitionFrameRateControlEnabled")))
             #print(PySpin.IsWritable(nodemap.GetNode("AcquisitionFrameRate")))
@@ -183,12 +157,14 @@ class Server:
             framerate_to_set = node_acquisition_framerate.GetValue()
             node_acquisition_framerate_enable = PySpin.CBooleanPtr(nodemap.GetNode("AcquisitionFrameRateEnabled"))
             enable = node_acquisition_framerate_enable.GetValue()
-            node_acquisition_framerate_enable.SetValue(True)
-            print(framerate_to_set, enable)
-            node_acquisition_framerate.SetValue(10.0)
+            #node_acquisition_framerate_enable.SetValue(True)
+            #print(framerate_to_set, enable)
+            #node_acquisition_framerate = 10.0
+
+            #print(node_acquisition_framerate.GetValue())
             #node_fps = PySpin.CFloatPtr(nodemap.GetNode("AcquisitionFrameRate"))
             #node_fps.SetValue(100.0)
-            """
+            
             
             setup(cam, nodemap, nodemap_tldevice)
             print("setup is done.")
@@ -204,7 +180,7 @@ class Server:
                 elif self.type_of_video == 1:
                     duration = 1
                 elif self.type_of_video == 2:
-                    duration = 30
+                    duration = 108000
 
                 i = 0
                 
@@ -212,8 +188,7 @@ class Server:
                     pass
 
                 if duration != None:
-                    end_time = simple_time(
-                        self.timer.formatted_time(self.timer.now())) + duration
+                    end_time = int(self.timer.now()) + duration
     
                     print(
                         f"error in video start is {subtr_seconds(self.at_time)} seconds")
@@ -231,11 +206,26 @@ class Server:
                     
                     print(self.timer.formatted_time(self.timer.now()))
 
-                    while (simple_time(self.timer.formatted_time(self.timer.now())) < end_time):
+                    pr = cProfile.Profile()
+                    pr.enable()
+                    
+                    global continue_recording
+                    continue_recording = True
+                    while continue_recording:
+                        print(self.timer.now())
                         image = get_image(cam)
-                        result.write(image)
-    
+                        #result.write(image)
+                        #print(self.timer.now())
                         i += 1
+                        if (self.timer.now() >= end_time):
+                            continue_recording = False
+
+                    pr.disable()
+                    s = io.StringIO()
+                    sortby = SortKey.CUMULATIVE
+                    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                    ps.print_stats()
+                    print(s.getvalue())
                     print(self.timer.formatted_time(self.timer.now()))
 
                     print(i)
@@ -244,6 +234,7 @@ class Server:
                         f"error in video end is {subtr_seconds(self.at_time) + duration} seconds")
     
                 self.counter += 1
+
 
             cam.EndAcquisition()
 
@@ -268,17 +259,17 @@ class Server:
 
         return at_time, arduino_command, video_type
 
-
-events = pd.read_csv(os.getcwd() + "\\scheduled-events", sep="\t", header=None)
-s = Server(events)
-print("spinning up threads")
-
-video_thread = Thread(target=s.video)
-arduino_thread = Thread(target=s.send_to_arduino)
-
-print("starting")
-
-video_thread.start()
-arduino_thread.start()
-
-print("started")
+if __name__ == '__main__':    
+    events = pd.read_csv(os.getcwd() + "\\scheduled-events", sep="\t", header=None)
+    s = Server(events)
+    print("spinning up threads")
+    
+    video_thread = Thread(target=s.video)
+    arduino_thread = Thread(target=s.send_to_arduino)
+    
+    print("starting")
+    
+    video_thread.start()
+    arduino_thread.start()
+    
+    print("started")

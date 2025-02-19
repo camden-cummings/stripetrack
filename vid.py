@@ -1,6 +1,6 @@
 import os
 #from threading import Thread
-from multiprocessing.pool import ThreadPool
+from multiprocessing import Pool
 import cProfile, pstats, io
 from pstats import SortKey
 
@@ -10,37 +10,13 @@ import numpy as np
 import dearpygui.dearpygui as dpg
 import pandas as pd
 
-from arduino_server import PreciseTime
-from tracker.real_time_tracker import RealTimeTracker
+from precise_time import PreciseTime
 from tracker.cell_finder_helpers.calc_mode import calc_mode
 from AcquireAndDisplayClass import get_image
 from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_device_serial_number
 from gui_helpers import GUIHelpers
 
 global continue_recording
-
-#from tracker.structural_similarity_tracker import StructuralSimilarityTracker
-
-continue_recording = True
-contour_overlay = False
-
-FRAME_HEIGHT, FRAME_WIDTH = 660, 1088
-
-moviedeq = []
-
-dpg.create_context()
-
-#mode_noblur_path = ex_fn[:-4] + "-mode.png"
-#mode_noblur_img = cv2.cvtColor(cv2.imread(mode_noblur_path), cv2.COLOR_BGR2GRAY)
-
-
-gui = GUIHelpers(FRAME_HEIGHT, FRAME_WIDTH)
-
-dpg.set_primary_window(gui.window, True)
-dpg.create_viewport(width=int(FRAME_WIDTH*1.5), height=FRAME_HEIGHT+20, title="ROI Selector")
-dpg.setup_dearpygui()
-dpg.show_viewport()
-  
 global run_once
 run_once = True
 
@@ -51,7 +27,6 @@ class RunCV:
         self.beeg_array = np.zeros((FRAME_HEIGHT, FRAME_WIDTH))
 
     def find_mode(self, image, image_data, frame_counter):
-        async_result = None
         global run_once
     
     #    print(len(moviedeq))
@@ -62,21 +37,22 @@ class RunCV:
             #mode_thread = Thread(target=calc_mode, args=(moviedeq, FRAME_HEIGHT, FRAME_WIDTH))
             #mode_thread.start()
             print("starting")
-            pool = ThreadPool(processes=1)
+            pool = Pool(processes=1)
             self.async_result = pool.apply_async(calc_mode, (moviedeq, FRAME_HEIGHT, FRAME_WIDTH))
             #mode_noblur_img = calc_mode(moviedeq, FRAME_HEIGHT, FRAME_WIDTH)
             
             run_once = False
-        
+
         if self.async_result is not None and self.async_result.ready():
             self.mode_noblur_img = self.async_result.get()
             gui.rt_tracker.standard_image_noise = gui.rt_tracker.CV_image_noise_light_background(self.mode_noblur_img)
-            
+        
+        
     def run_CV(self, image, image_data, frame_counter):
         match gui.contour_definer.cv_method:
             case "Structural Similarity":            
                 gui.rt_tracker.MIN_AREA = gui.contour_definer.centroid_size
-                contours, diff = gui.rt_tracker.structural_sim_contours(image, self.mode_noblur_img, min_thresh = gui.contour_definer.thresh)     
+                contours, diff = gui.rt_tracker.structural_sim_contours(image, self.mode_noblur_img, min_thresh = gui.contour_definer.thresh)  
                 cv2.drawContours(image_data, contours, -1, (255, 0, 0), 1)
             case "Real Time":
                 if any([frame_counter % x == 0 for x in range(50,59,1)]):            
@@ -87,12 +63,12 @@ class RunCV:
                     self.beeg_array[self.beeg_array > 0] = 255
                     gui.rt_tracker.standard_image_noise = self.beeg_array
                 
-                
                 gui.rt_tracker.MIN_AREA = gui.contour_definer.centroid_size
                 sharpened_contours, contour_img = gui.rt_tracker.new_CV(image, min_thresh = gui.contour_definer.thresh)
                 cv2.drawContours(image_data, sharpened_contours, -1, (0, 255, 0), 1)  # RED
-    
 
+        return image_data    
+    
 def process_command_string(cmd_string: pd.DataFrame) -> [list[str], str, int]:
     """Converts a command into separate pieces."""
 
@@ -181,12 +157,12 @@ def video():
 
             image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
              
-            """
+            
             if r.mode_noblur_img is None:
                 r.find_mode(image, image_data, frame_counter)
             else:
-                r.run_CV(image, image_data, frame_counter)
-            """
+                image_data = r.run_CV(image, image_data, frame_counter)
+            
             
             data = np.flip(image_data, 2)
             data = data.ravel()
@@ -226,6 +202,27 @@ def video():
     # Release system instance
     system.ReleaseInstance()
 
-video()
+if __name__ == '__main__':    
+    continue_recording = True
+    contour_overlay = False
+
+    FRAME_HEIGHT, FRAME_WIDTH = 660, 1088
+
+    moviedeq = []
+
+    dpg.create_context()
+
+    #mode_noblur_path = ex_fn[:-4] + "-mode.png"
+    #mode_noblur_img = cv2.cvtColor(cv2.imread(mode_noblur_path), cv2.COLOR_BGR2GRAY)
+
+
+    gui = GUIHelpers(FRAME_HEIGHT, FRAME_WIDTH)
+
+    dpg.set_primary_window(gui.window, True)
+    dpg.create_viewport(width=int(FRAME_WIDTH*1.5), height=FRAME_HEIGHT+20, title="ROI Selector")
+    dpg.setup_dearpygui()
+    dpg.show_viewport()
+    
+    video()
 #video_thread = Thread(target=video)
 #video_thread.start()
