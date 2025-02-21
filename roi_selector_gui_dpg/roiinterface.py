@@ -12,11 +12,11 @@ import numpy as np
 import dearpygui.dearpygui as dpg
 from shapely.geometry import Point, Polygon
 
-from roi_selector_gui_dpg.roipoly import RoiPoly
+from roipoly import RoiPoly
 
 class ROIInterface:
     """Defines useful methods for interacting (moving, rotating) polygons."""
-    def __init__(self, frame_height, frame_width, window, shift):
+    def __init__(self, frame_height, frame_width, window, shift=(0,0)):
         self.rois = []
         self.selected_polygon = None
         self.selected_polygon_vert = None
@@ -24,13 +24,9 @@ class ROIInterface:
         self.frame_width = frame_width
         self.frame_height = frame_height
         self.window = window
-<<<<<<< HEAD
         self.allowed_area = 0.0
-    
-=======
         self.shift = shift
         
->>>>>>> 2d0b90332a6b8a3cddafa20f7794bbccfd6098e3
     def left_mouse_press_callback(self):
         """When mouse clicked, checks if current mouse position is near to a polygon or a polygon vertex."""
         x, y = self.get_mouse_pos()
@@ -159,11 +155,10 @@ class ROIInterface:
         self.rois.extend(new_rois)
     
     def save_rois(self, _, app_data: dict): 
-        print(app_data)
         with open(app_data["file_path_name"], 'wb') as filename:
             allowed_rois = []
             
-            for roi in self.rois:
+            for roi in self.rois: 
                 if roi.area > self.allowed_area:
                     allowed_rois.append(roi)
             

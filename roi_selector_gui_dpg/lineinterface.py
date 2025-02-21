@@ -17,7 +17,7 @@ import dearpygui.dearpygui as dpg
 class LineInterface:
     """Allows manipulating of lines going from top to bottom of given window, and creation of poly based on that."""
 
-    def __init__(self, frame_height, frame_width, window, shift):
+    def __init__(self, frame_height, frame_width, window, shift=(0,0)):
         self.lines = []
         self.drag_point = None
         self.drag_line = None
@@ -68,7 +68,7 @@ class LineInterface:
         
         elif self.middle_drag_line is not None:
             mouse_posn = self.get_mouse_pos()
-
+            
             if (self.shift[0] <= mouse_posn[0] <= self.shift[0]+self.frame_width) and (self.shift[1] <= mouse_posn[1] <= self.shift[1]+self.frame_height):
                 self.move_line_by_middle(mouse_posn)
         
@@ -134,6 +134,7 @@ class LineInterface:
                 
     def move_line_by_middle(self, mouse_posn: tuple[int, int]):
         """Moves selected line around using middle point as handle."""
+        #TODO adjust s.t. still works when not on opposite walls, fix movement issue where escapes bounds
         dx = self.last_mouse_posn[0] - mouse_posn[0]
         dy = self.last_mouse_posn[1] - mouse_posn[1]
 
@@ -161,13 +162,14 @@ class LineInterface:
 
         """
         closest = ()
+        closest_middle = ()
         for line in self.lines:  # for each line on the screen
             # get x and y data points
             config_dict = dpg.get_item_configuration(line)
             
             x_ = 0
             y_ = 0
-            for point_num in range(1, 3, 1):
+            for point_num in range(1, 3, 1): 
                 x, y = config_dict["p"+str(point_num)]
                 x_ += x
                 y_ += y
@@ -180,16 +182,22 @@ class LineInterface:
                         closest = ((line, point_num), dist)
                         
             middle_point = [int(x_/2), int(y_/2)]
-            
-            if math.dist(middle_point, mouse_posn) < self.hypotenuse/16:
-                self.middle_drag_line = line
-                self.last_mouse_posn = mouse_posn
-
+            mid_dist = math.dist(middle_point, mouse_posn)
+            if mid_dist < self.hypotenuse/16:
+                if closest_middle != ():
+                    if mid_dist < closest_middle[1]:
+                        closest_middle = ((line, mouse_posn), mid_dist)
+                else:
+                    closest_middle = ((line, mouse_posn), mid_dist)
 
         if closest != ():
             self.drag_line = closest[0][0]
             self.drag_point = closest[0][1]
     
+        if closest_middle != ():
+            self.middle_drag_line = closest_middle[0][0]
+            self.last_mouse_posn = closest_middle[0][1]
+
     def check_for_hover(self):
         """Check if mouse hovering over poly or poly vertex."""
         mouse_posn = self.get_mouse_pos()

@@ -7,9 +7,9 @@ Created on Thu Jan 30 14:55:53 2025
 """
 import dearpygui.dearpygui as dpg
 
-from roi_selector_gui_dpg.roipoly import RoiPoly
-from roi_selector_gui_dpg.roiinterface import ROIInterface
-from roi_selector_gui_dpg.lineinterface import LineInterface
+from roipoly import RoiPoly
+from roiinterface import ROIInterface
+from lineinterface import LineInterface
 
 class StateManager:
     """Makes sure in correct state when necessary."""
@@ -99,7 +99,8 @@ class StateManager:
 
         self.roi_interface.rois.clear()
         
-    def roi_slider_size(self, _, allowed_area): #TODO allow slider
+    def roi_slider_size(self, _, allowed_area): 
+        print("in roi slider size")
         self.roi_interface.allowed_area = allowed_area
         for roi in self.roi_interface.rois:
             if roi.area < allowed_area:
@@ -109,8 +110,8 @@ class StateManager:
 
     def copy(self, _, __):
         if self.ROI and self.ctrl_has_been_pressed:
-
             roi = self.roi_interface.check_for_hover()
+            
             if roi is not None:
                 new_roi = RoiPoly(self.window, self.frame_width,
                                   self.frame_height, lines=roi.lines)
@@ -126,8 +127,10 @@ class StateManager:
     def delete(self, _, __):
         if self.ROI:
             roi = self.roi_interface.check_for_hover()
-            dpg.delete_item(roi.poly)
-            self.roi_interface.rois.remove(roi)
+            
+            if roi is not None:
+                dpg.delete_item(roi.poly)
+                self.roi_interface.rois.remove(roi)
 
         else:
             self.line_interface.delete()

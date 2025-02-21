@@ -12,7 +12,7 @@ from shapely.geometry import Polygon
 class RoiPoly:
     """Defines point-by-point selected polygon."""
 
-    def __init__(self, window, frame_width, frame_height, shift, lines=None):
+    def __init__(self, window, frame_width, frame_height, shift=(0,0), lines=None):
         self.line = None
         self.lines = []
         self.poly = None
@@ -33,6 +33,7 @@ class RoiPoly:
         if lines is not None:
             self.lines = lines
             self.completed = True
+            self.finish_roi()
             self.poly = dpg.draw_polyline(points=self.lines, color=(
                 255, 0, 0, 255), thickness=1, parent=self.window, closed=True)
     
@@ -64,9 +65,11 @@ class RoiPoly:
     def right_mouse_press_callback(self):
         """Complete polygon if right mouse is clicked and there are enough points to make one."""
         if len(self.lines) > 3:
+            print("right press")
             self.lines = self.lines[:-1]
             dpg.configure_item(self.poly, points=self.lines, closed=True)
             self.finish_roi()
+            print(self.area)
             self.completed = True
             
 

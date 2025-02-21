@@ -64,8 +64,8 @@ class VisibilityManager:
             dpg.add_button(label="Save ROIs", callback=lambda: dpg.show_item("roi_save_file"))
             dpg.add_button(label="Auto Generate ROIs", callback=state_manager.auto_gen_rois)
             
-            
-            dpg.add_text("NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete", pos=(shift+5, 125), wrap=150)
+            dpg.add_button(label="Clear Screen and Start Over", pos = [shift, 120], callback=state_manager.clear_window)
+            dpg.add_text("NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete", pos=(shift+5, 140), wrap=150)
 
         return roi
     
@@ -87,7 +87,8 @@ class VisibilityManager:
             
             dpg.add_button(label="Load Line Configuration", callback=lambda: dpg.show_item("line_load_file"))
 
-            dpg.add_text("NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete", pos=(shift+5, 195), wrap=150)
+            dpg.add_button(label="Clear Screen and Start Over", pos = [shift, 145], callback=state_manager.clear_window)
+            dpg.add_text("NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete \n WASD: move all lines", pos=(shift+5, 165), wrap=150)
             
         return line
     
@@ -144,7 +145,7 @@ class VisibilityManager:
                     shift = frame_width+10
                     dpg.add_combo(("ROI", "Line"), label="Mode", width=50, pos=[shift,0], callback=self.__change, default_value="ROI")
                     dpg.add_button(label="START", callback=self.__start_movies_and_stimuli)
-                    
+
                     path = Path(filename)
                     roi = self.setup_roi_buttons(shift, path, state_manager)
                     line = self.setup_line_buttons(shift, state_manager)
