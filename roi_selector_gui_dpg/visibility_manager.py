@@ -8,9 +8,7 @@ Created on Tue Feb 11 12:30:38 2025
 import dearpygui.dearpygui as dpg
 from pathlib import Path
 
-from statemanager import StateManager
-
-import subprocess
+from roi_selector_gui_dpg.statemanager import StateManager
 
 import numpy as np
 
@@ -18,7 +16,7 @@ class VisibilityManager:
     def __init__(self, filename, frame_width, frame_height):
         self.roi, self.line, self.roi_and_line_selection, self.post_line, self.state_manager = self.setup_elements(filename, frame_width, frame_height)
         
-    def __change(self, e, data):
+    def change(self, e, data):
         if data == "ROI":
             dpg.show_item(self.roi)
             dpg.hide_item(self.line)
@@ -30,29 +28,25 @@ class VisibilityManager:
             dpg.hide_item(self.roi)
             self.state_manager.ROI = False
     
-    def __generate_rois(self):
+    def generate_rois(self):
         dpg.hide_item(self.roi_and_line_selection)
         dpg.show_item(self.post_line)
         
         self.state_manager.generate_rois()
     
-    def __restart(self):
+    def restart(self):
         dpg.show_item(self.roi_and_line_selection)
         dpg.hide_item(self.post_line)
     
         self.state_manager.clear_window()
         
-    def __start_movies_and_stimuli():
-        print("go to arduino script here")
-        subprocess.call("arduino filepath")
-
+    def start_movies_and_stimuli():
+        pass
     
-    def setup_roi_buttons(self, shift, path, state_manager):
+    def setup_roi_buttons(self, shift, curr_dir, curr_name, state_manager):
         with dpg.group(label="roi buttons", pos=[shift,25]) as roi: #ROI Mode Buttons
             dpg.add_button(label="New ROI", callback=state_manager.new_roi)
             
-            curr_dir = path.parent
-            curr_name = str(path.stem)
             with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.roi_interface.load_rois, id="roi_load_file", width=700 ,height=400, default_path = curr_dir, default_filename = curr_name):
                 dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
                 
@@ -75,7 +69,7 @@ class VisibilityManager:
             vert = dpg.add_input_text(width=15, source="int_value", default_value=1, pos=[shift+104,25], callback=state_manager.line_interface.num_of_vert_lines_changer)
             dpg.add_button(label="Horizontal Line", callback=state_manager.line_interface.horizontal_line_callback)
             hor = dpg.add_input_text(width=15, source="int_value", default_value=1, pos=[shift+118,48], callback=state_manager.line_interface.num_of_hor_lines_changer)
-            dpg.add_button(label="Generate ROIs", callback=self.__generate_rois)
+            dpg.add_button(label="Generate ROIs", callback=self.generate_rois)
 
             with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.line_interface.save_lines, id="line_save_file", width=700 ,height=400):
                 dpg.add_file_extension(".lines", color=(0, 255, 0, 255), custom_text="[Line Save File]")
@@ -92,17 +86,14 @@ class VisibilityManager:
             
         return line
     
-    def setup_post_line_buttons(self, shift, state_manager, path, frame_width, frame_height):
+    def setup_post_line_buttons(self, shift, state_manager, frame_width, frame_height, curr_dir, curr_name):
         with dpg.group(label="post line buttons", pos=[shift,0]) as post_line:
-            curr_dir = path.parent
-            curr_name = str(path.stem)
-            
             with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.roi_interface.save_rois, id="roi_post_save_file", width=700 ,height=400, default_path = curr_dir, default_filename = curr_name):
                 dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
             
             dpg.add_button(label="Save ROIs", callback=lambda: dpg.show_item("roi_post_save_file"))
 
-            dpg.add_button(label="Clear Screen and Start Over", callback=self.__restart)
+            dpg.add_button(label="Clear Screen and Start Over", callback=self.restart)
             
             roi_slider = dpg.add_slider_double(
                 label="Allowed ROI Area",
@@ -143,15 +134,17 @@ class VisibilityManager:
             with dpg.child_window(border=False):
                 with dpg.group() as roi_and_line_selection:
                     shift = frame_width+10
-                    dpg.add_combo(("ROI", "Line"), label="Mode", width=50, pos=[shift,0], callback=self.__change, default_value="ROI")
-                    dpg.add_button(label="START", callback=self.__start_movies_and_stimuli)
+                    dpg.add_combo(("ROI", "Line"), label="Mode", width=50, pos=[shift,0], callback=self.change, default_value="ROI")
+                    dpg.add_button(label="START", callback=self.start_movies_and_stimuli)
 
                     path = Path(filename)
-                    roi = self.setup_roi_buttons(shift, path, state_manager)
+                    curr_dir = path.parent
+                    curr_name = str(path.stem)
+                    roi = self.setup_roi_buttons(shift, curr_dir, curr_name, state_manager)
                     line = self.setup_line_buttons(shift, state_manager)
                     dpg.hide_item(line)
                 
-                post_line = self.setup_post_line_buttons(shift, state_manager, path, frame_width, frame_height)
+                post_line = self.setup_post_line_buttons(shift, state_manager, frame_width, frame_height, curr_dir, curr_name)
                 dpg.hide_item(post_line)
             
             dpg.add_image("texture_tag", pos=[8,8])
