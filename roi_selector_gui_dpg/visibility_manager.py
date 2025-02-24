@@ -105,6 +105,20 @@ class VisibilityManager:
             )
         return post_line
     
+    def setup_keypress(self, state_manager):
+        with dpg.handler_registry():
+            dpg.add_mouse_move_handler(callback=state_manager.motion_notify_callback)
+            dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Left, callback=state_manager.release)
+            dpg.add_mouse_click_handler(button=dpg.mvMouseButton_Left, callback=state_manager.left_mouse_press_callback)
+            dpg.add_mouse_click_handler(button=dpg.mvMouseButton_Right, callback=state_manager.right_mouse_press_callback)
+            dpg.add_key_press_handler(key=dpg.mvKey_C, callback=state_manager.copy)
+            dpg.add_key_press_handler(key=dpg.mvKey_LControl, callback=state_manager.control)
+            dpg.add_key_press_handler(key=dpg.mvKey_Delete, callback=state_manager.delete)
+            dpg.add_key_press_handler(key=dpg.mvKey_W, callback=state_manager.w)
+            dpg.add_key_press_handler(key=dpg.mvKey_A, callback=state_manager.a)
+            dpg.add_key_press_handler(key=dpg.mvKey_S, callback=state_manager.s)
+            dpg.add_key_press_handler(key=dpg.mvKey_D, callback=state_manager.d)
+            
     #TODO fill out description
     def setup_elements(self, filename, frame_width, frame_height):
         raw_data = np.zeros((frame_height, frame_width, 3), dtype=np.float32)
@@ -117,20 +131,8 @@ class VisibilityManager:
         
         with dpg.window(label="Video player", pos=(50,50), width = frame_width, height=frame_height) as window:
             state_manager = StateManager(frame_width, frame_height, window)
-        
-            with dpg.handler_registry():
-                dpg.add_mouse_move_handler(callback=state_manager.motion_notify_callback)
-                dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Left, callback=state_manager.release)
-                dpg.add_mouse_click_handler(button=dpg.mvMouseButton_Left, callback=state_manager.left_mouse_press_callback)
-                dpg.add_mouse_click_handler(button=dpg.mvMouseButton_Right, callback=state_manager.right_mouse_press_callback)
-                dpg.add_key_press_handler(key=dpg.mvKey_C, callback=state_manager.copy)
-                dpg.add_key_press_handler(key=dpg.mvKey_LControl, callback=state_manager.control)
-                dpg.add_key_press_handler(key=dpg.mvKey_Delete, callback=state_manager.delete)
-                dpg.add_key_press_handler(key=dpg.mvKey_W, callback=state_manager.w)
-                dpg.add_key_press_handler(key=dpg.mvKey_A, callback=state_manager.a)
-                dpg.add_key_press_handler(key=dpg.mvKey_S, callback=state_manager.s)
-                dpg.add_key_press_handler(key=dpg.mvKey_D, callback=state_manager.d)
-                
+            self.setup_keypress(state_manager)
+            
             with dpg.child_window(border=False):
                 with dpg.group() as roi_and_line_selection:
                     shift = frame_width+10

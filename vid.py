@@ -15,6 +15,7 @@ from tracker.cell_finder_helpers.calc_mode import calc_mode
 from AcquireAndDisplayClass import get_image
 from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_device_serial_number
 from gui_helpers import GUIHelpers
+from tracker.helpers.centroid_manip import find_centroid_of_contour, check_masked_image
 
 global continue_recording
 global run_once
@@ -24,19 +25,15 @@ class RunCV:
     def __init__(self):
         self.async_result = None
         self.mode_noblur_img = None
+        self.mask = np.zeros((FRAME_HEIGHT, FRAME_WIDTH))
         self.beeg_array = np.zeros((FRAME_HEIGHT, FRAME_WIDTH))
 
     def find_mode(self, image, image_data, frame_counter):
         global run_once
     
-    #    print(len(moviedeq))
         if len(moviedeq) < 50:# and frame_counter % 50 == 0:
-            print(frame_counter)
             moviedeq.append(image)
         elif len(moviedeq) >= 50 and run_once == True:
-            #mode_thread = Thread(target=calc_mode, args=(moviedeq, FRAME_HEIGHT, FRAME_WIDTH))
-            #mode_thread.start()
-            print("starting")
             pool = Pool(processes=1)
             self.async_result = pool.apply_async(calc_mode, (moviedeq, FRAME_HEIGHT, FRAME_WIDTH))
             #mode_noblur_img = calc_mode(moviedeq, FRAME_HEIGHT, FRAME_WIDTH)
@@ -46,14 +43,23 @@ class RunCV:
         if self.async_result is not None and self.async_result.ready():
             self.mode_noblur_img = self.async_result.get()
             gui.rt_tracker.standard_image_noise = gui.rt_tracker.CV_image_noise_light_background(self.mode_noblur_img)
-        
+            dpg.configure_item(gui.status, default_value="Status: Ready")
         
     def run_CV(self, image, image_data, frame_counter):
         match gui.contour_definer.cv_method:
             case "Structural Similarity":            
                 gui.rt_tracker.MIN_AREA = gui.contour_definer.centroid_size
                 contours, diff = gui.rt_tracker.structural_sim_contours(image, self.mode_noblur_img, min_thresh = gui.contour_definer.thresh)  
-                cv2.drawContours(image_data, contours, -1, (255, 0, 0), 1)
+                
+                if gui.show_only_inside_conts:
+                    for c in contours:
+                        cx, cy = find_centroid_of_contour(c)
+
+                        if not check_masked_image((cx, cy), gui.rt_tracker.mask):
+                            cv2.drawContours(image_data, c, -1, (255, 0, 0), 1)
+                else:
+                    cv2.drawContours(image_data, contours, -1, (255, 0, 0), 1)
+                    
             case "Real Time":
                 if any([frame_counter % x == 0 for x in range(50,59,1)]):            
                     noise_image = gui.rt_tracker.CV_image_noise_light_background(image)
@@ -65,7 +71,16 @@ class RunCV:
                 
                 gui.rt_tracker.MIN_AREA = gui.contour_definer.centroid_size
                 sharpened_contours, contour_img = gui.rt_tracker.new_CV(image, min_thresh = gui.contour_definer.thresh)
-                cv2.drawContours(image_data, sharpened_contours, -1, (0, 255, 0), 1)  # RED
+                
+                if gui.show_only_inside_conts:
+                    for c in sharpened_contours:
+                        cx, cy = find_centroid_of_contour(c)
+                        print(cx, cy)
+
+                        if not check_masked_image((cx, cy), gui.rt_tracker.mask):
+                            cv2.drawContours(image_data, c, -1, (255, 0, 0), 1)
+                else:
+                    cv2.drawContours(image_data, sharpened_contours, -1, (255, 0, 0), 1)  
 
         return image_data    
     
@@ -206,7 +221,7 @@ if __name__ == '__main__':
     continue_recording = True
     contour_overlay = False
 
-    FRAME_HEIGHT, FRAME_WIDTH = 660, 1088
+    FRAME_HEIGHT, FRAME_WIDTH = 850, 1248
 
     moviedeq = []
 
