@@ -8,7 +8,7 @@ from pathlib import Path
 from roi_selector_gui_dpg.statemanager import StateManager
 from roi_selector_gui_dpg.visibility_manager import VisibilityManager
 import dearpygui.dearpygui as dpg
-from tracker.real_time_tracker import RealTimeTracker
+from tracker.tracker_options.real_time_tracker import RealTimeTracker
 import subprocess
 from pynput.keyboard import Key, Controller
 import os
@@ -26,13 +26,14 @@ class GUIHelpers(VisibilityManager):
         self.max_area = 300
         self.length_req = 40
         self.show_only_inside_conts = False
+        self.contour_overlay = False
         self.rt_tracker = RealTimeTracker([], [1], self.min_area, self.max_area, self.length_req, np.zeros((frame_height, frame_width)))
+        self.start_recording = False
+        self.mode_calculated = False
         
-    def start_movies_and_stimuli():
-        print("go to arduino script here")
-        #keyboard = Controller()
-        #keyboard.press(Key.enter)
-        #subprocess.call(['python.exe',"arduino_server.py"])
+    def start(self, _, __):
+        if self.mode_calculated:
+            self.start_recording = True
         
     def set_cells(self, _, appdata):        
         cell_contours = []
@@ -44,9 +45,9 @@ class GUIHelpers(VisibilityManager):
     def tab_callback(self, _, tab_id):
         match dpg.get_item_configuration(tab_id)["label"]:
             case "ROI Selection":
-                contour_overlay=False
+                self.contour_overlay=False
             case "Contour Overlay": 
-                contour_overlay=True
+                self.contour_overlay=True
                 
                 cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(self.state_manager.roi_interface.convert_rois_to_lines(self.state_manager.roi_interface.rois), self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
@@ -62,7 +63,7 @@ class GUIHelpers(VisibilityManager):
             dpg.add_raw_texture(self.FRAME_WIDTH, self.FRAME_HEIGHT, raw_data, format=dpg.mvFormat_Float_rgb, tag="texture_tag")
     
         with dpg.theme() as canvas_theme, dpg.theme_component():
-            dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 0,0)
+            dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 0, 0)
         
         right_shift = self.FRAME_WIDTH+10
         std_shift = 8
@@ -77,7 +78,6 @@ class GUIHelpers(VisibilityManager):
                     with dpg.child_window(border=False):
                         with dpg.group() as roi_and_line_selection:
                             dpg.add_combo(("ROI", "Line"), label="Mode", width=50, pos=[right_shift,0], callback=self.change, default_value="ROI")
-                            dpg.add_button(label="START", callback=self.start_movies_and_stimuli)
                             
                             path = Path(os.getcwd())
                             curr_dir = path.parent
@@ -101,7 +101,7 @@ class GUIHelpers(VisibilityManager):
                         with dpg.file_dialog(directory_selector=False, show=False, callback=self.set_cells, id="set_rois", width=0 ,height=0):
                             dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
                                                 
-                        with dpg.tree_node(label="Basic", default_open=True):
+                        with dpg.tree_node(label="Computer Vision Options", default_open=True):
                             dpg.add_combo(("No Contours", "Structural Similarity", "Real Time"), label="Contour Detecting Algorithm", callback=self.contour_definer.cv_alg_change, default_value="No Contours", width=180)
                             with dpg.group(width = 300):
                                 dpg.add_slider_float(label="Threshold", callback=self.contour_definer.threshold_change, min_value=0, max_value=255, default_value=self.contour_definer.thresh)            
@@ -109,5 +109,7 @@ class GUIHelpers(VisibilityManager):
                             status = dpg.add_text("Status: Not Ready")
     
                             dpg.add_checkbox(label = "Only Show ROIs Inside Selected Contours", callback=self.only_selected_contours)
+                        
+                        dpg.add_button(label="START", callback=self.start)
 
         return window, state_manager, roi, line, roi_and_line_selection, post_line, status
