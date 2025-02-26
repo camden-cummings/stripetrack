@@ -78,8 +78,9 @@ class RunCV:
         self.curr_img = None
         self.curr_img_data = None
         self.beeg_array = np.zeros((FRAME_HEIGHT, FRAME_WIDTH))
-        self.prev_diff = np.array(self.mask, dtype=np.uint8)
-
+        self.mask = None
+        self.masked_mode_noblur_img = None
+    
     def find_mode(self, frame_counter):
         global run_once
     
@@ -99,53 +100,53 @@ class RunCV:
             dpg.configure_item(gui.status, default_value="Status: Ready")
         
     def run_CV(self, frame_counter):
-        match gui.contour_definer.cv_method:
-            case "Structural Similarity":            
-                gui.rt_tracker.MIN_AREA = gui.contour_definer.centroid_size
-                #contours, diff = gui.rt_tracker.structural_sim_contours(self.curr_img, self.mode_noblur_img, min_thresh = gui.contour_definer.thresh) 
-
-                masked_curr_img = cv2.bitwise_and(
-                    self.curr_img, self.curr_img, mask=self.mask)
-        
-                self.prev_diff, all_centr_in_frame = find_centroids(self.prev_diff, masked_curr_img, False,
-                                                  self.masked_mode_noblur_img, frame_counter, gui.contour_definer.centroid_size, 500000,
-                                                  self.curr_img, gui.rt_tracker.shape_of_rows, gui.rt_tracker.cell_contours)
-                                    
-                for i in all_centr_in_frame:
-                    print(i)
-                    cv2.circle(self.curr_img_data, (i[3], i[4]), 1, (0,255,0), 1)
-                """              
-                if gui.show_only_inside_conts:
-                    for c in contours:
-                        cx, cy = find_centroid_of_contour(c)
-
-                        if not check_masked_image((cx, cy), gui.rt_tracker.mask):
-                            cv2.drawContours(self.curr_img_data, c, -1, (255, 0, 0), 1)
-                else:
-                    cv2.drawContours(self.curr_img_data, contours, -1, (255, 0, 0), 1)
-                """
-                
-            case "Real Time":
-                if any([frame_counter % x == 0 for x in range(50,59,1)]):            
-                    noise_image = gui.rt_tracker.CV_image_noise_light_background(self.curr_img)
-                    self.beeg_array += noise_image
-                if frame_counter % 60 == 0:                    
-                    self.beeg_array = self.beeg_array/3
-                    self.beeg_array[self.beeg_array > 0] = 255
-                    gui.rt_tracker.standard_image_noise = self.beeg_array
-                
-                gui.rt_tracker.MIN_AREA = gui.contour_definer.centroid_size
-                sharpened_contours, contour_img = gui.rt_tracker.new_CV(self.curr_img, min_thresh = gui.contour_definer.thresh)
-                
-                if gui.show_only_inside_conts:
-                    for c in sharpened_contours:
-                        cx, cy = find_centroid_of_contour(c)
-
-                        if not check_masked_image((cx, cy), gui.rt_tracker.mask):
-                            cv2.drawContours(self.curr_img_data, c, -1, (255, 0, 0), 1)
-                else:
-                    cv2.drawContours(self.curr_img_data, sharpened_contours, -1, (255, 0, 0), 1)  
+        if self.mask is not None:
+            match gui.contour_definer.cv_method:
+                case "Structural Similarity":            
+                    gui.rt_tracker.MIN_AREA = gui.contour_definer.centroid_size
+                    #contours, diff = gui.rt_tracker.structural_sim_contours(self.curr_img, self.mode_noblur_img, min_thresh = gui.contour_definer.thresh) 
     
+                    masked_curr_img = cv2.bitwise_and(
+                        self.curr_img, self.curr_img, mask=self.mask)
+            
+                    self.prev_diff, all_centr_in_frame = find_centroids(self.masked_mode_noblur_img, masked_curr_img, frame_counter, gui.contour_definer.centroid_size, 500000,
+                                                      gui.rt_tracker.shape_of_rows, gui.rt_tracker.cell_contours)
+                                        
+                    for i in all_centr_in_frame:
+                        print(i)
+                        cv2.circle(self.curr_img_data, (i[3], i[4]), 1, (0,255,0), 1)
+                    """              
+                    if gui.show_only_inside_conts:
+                        for c in contours:
+                            cx, cy = find_centroid_of_contour(c)
+    
+                            if not check_masked_image((cx, cy), gui.rt_tracker.mask):
+                                cv2.drawContours(self.curr_img_data, c, -1, (255, 0, 0), 1)
+                    else:
+                        cv2.drawContours(self.curr_img_data, contours, -1, (255, 0, 0), 1)
+                    """
+                    
+                case "Real Time":
+                    if any([frame_counter % x == 0 for x in range(50,59,1)]):            
+                        noise_image = gui.rt_tracker.CV_image_noise_light_background(self.curr_img)
+                        self.beeg_array += noise_image
+                    if frame_counter % 60 == 0:                    
+                        self.beeg_array = self.beeg_array/3
+                        self.beeg_array[self.beeg_array > 0] = 255
+                        gui.rt_tracker.standard_image_noise = self.beeg_array
+                    
+                    gui.rt_tracker.MIN_AREA = gui.contour_definer.centroid_size
+                    sharpened_contours, contour_img = gui.rt_tracker.new_CV(self.curr_img, min_thresh = gui.contour_definer.thresh)
+                    
+                    if gui.show_only_inside_conts:
+                        for c in sharpened_contours:
+                            cx, cy = find_centroid_of_contour(c)
+    
+                            if not check_masked_image((cx, cy), gui.rt_tracker.mask):
+                                cv2.drawContours(self.curr_img_data, c, -1, (255, 0, 0), 1)
+                    else:
+                        cv2.drawContours(self.curr_img_data, sharpened_contours, -1, (255, 0, 0), 1)  
+        
     
 def process_command_string(cmd_string: pd.DataFrame) -> [list[str], str, int]:
     """Converts a command into separate pieces."""
@@ -248,9 +249,22 @@ def video():
             elif r.mode_noblur_img is None:
                 r.find_mode(frame_counter)
             elif gui.contour_overlay:
-                
-                r.masked_mode_noblur_img = cv2.bitwise_and(
-                    r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
+                if gui.contours_updated:
+                    contour_mask = np.zeros((FRAME_HEIGHT, FRAME_WIDTH, 3))
+                    
+                    for c in gui.rt_tracker.cell_contours:
+                        print(c[0])
+                        contour_mask = cv2.drawContours(contour_mask, [c],
+                                                        -1, (255, 255, 255), thickness=cv2.FILLED)
+                        
+                    r.mask = cv2.cvtColor(
+                        np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
+                    
+                    r.masked_mode_noblur_img = cv2.bitwise_and(
+                        r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
+                    
+                    gui.contours_updated = False
+
                 r.run_CV(frame_counter)
             
             data = np.flip(r.curr_img_data, 2)

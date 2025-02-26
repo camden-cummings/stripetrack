@@ -25,9 +25,10 @@ class GUIHelpers(VisibilityManager):
         self.min_area = 40
         self.max_area = 300
         self.length_req = 40
+        self.rt_tracker = RealTimeTracker([], [1], self.min_area, self.max_area, self.length_req, np.zeros((frame_height, frame_width)))
         self.show_only_inside_conts = False
         self.contour_overlay = False
-        self.rt_tracker = RealTimeTracker([], [1], self.min_area, self.max_area, self.length_req, np.zeros((frame_height, frame_width)))
+        self.contours_updated = False
         self.start_recording = False
         self.mode_calculated = False
         
@@ -42,16 +43,21 @@ class GUIHelpers(VisibilityManager):
     
         self.rt_tracker = RealTimeTracker(cell_contours, shape_of_rows, self.min_area, self.max_area, self.length_req, contour_mask)
     
+        self.contours_updated = True
+
     def tab_callback(self, _, tab_id):
         match dpg.get_item_configuration(tab_id)["label"]:
             case "ROI Selection":
                 self.contour_overlay=False
             case "Contour Overlay": 
-                self.contour_overlay=True
+                self.contour_overlay = True
+                self.contours_updated = True
                 
                 cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(self.state_manager.roi_interface.convert_rois_to_lines(self.state_manager.roi_interface.rois), self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
                 self.rt_tracker = RealTimeTracker(cell_contours, shape_of_rows, self.min_area, self.max_area, self.length_req, contour_mask)
+                
+
     
     def only_selected_contours(self, _, show_only_inside_conts):
         self.show_only_inside_conts = show_only_inside_conts
