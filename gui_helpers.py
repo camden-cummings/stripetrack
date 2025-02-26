@@ -53,6 +53,7 @@ class GUIHelpers(VisibilityManager):
                 self.contour_overlay = True
                 self.contours_updated = True
                 
+                print("Contour Overlay")
                 cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(self.state_manager.roi_interface.convert_rois_to_lines(self.state_manager.roi_interface.rois), self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
                 self.rt_tracker = RealTimeTracker(cell_contours, shape_of_rows, self.min_area, self.max_area, self.length_req, contour_mask)

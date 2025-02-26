@@ -23,7 +23,7 @@ from tracker.helpers.centroid_manip import ignored_cen, generate_cen_masked_imag
 global continue_recording
 global run_once
 run_once = True
-
+DESIRED_MODE_FRAMES = 2
    
 def find_centroids(comp_img, curr_img_gray, frame_count, min_area, max_area, shape_of_rows, cell_contours):
     # Compute SSIM between the two images
@@ -84,9 +84,9 @@ class RunCV:
     def find_mode(self, frame_counter):
         global run_once
     
-        if len(moviedeq) < 50:# and frame_counter % 50 == 0:
+        if len(moviedeq) < DESIRED_MODE_FRAMES:# and frame_counter % 50 == 0:
             moviedeq.append(self.curr_img)
-        elif len(moviedeq) >= 50 and run_once == True:
+        elif len(moviedeq) >= DESIRED_MODE_FRAMES and run_once == True:
             pool = Pool(processes=1)
             self.async_result = pool.apply_async(calc_mode, (moviedeq, FRAME_HEIGHT, FRAME_WIDTH))
             #mode_noblur_img = calc_mode(moviedeq, FRAME_HEIGHT, FRAME_WIDTH)
@@ -108,12 +108,11 @@ class RunCV:
     
                     masked_curr_img = cv2.bitwise_and(
                         self.curr_img, self.curr_img, mask=self.mask)
-            
-                    self.prev_diff, all_centr_in_frame = find_centroids(self.masked_mode_noblur_img, masked_curr_img, frame_counter, gui.contour_definer.centroid_size, 500000,
+
+                    all_centr_in_frame = find_centroids(self.masked_mode_noblur_img, masked_curr_img, frame_counter, gui.contour_definer.centroid_size, 500000,
                                                       gui.rt_tracker.shape_of_rows, gui.rt_tracker.cell_contours)
                                         
                     for i in all_centr_in_frame:
-                        print(i)
                         cv2.circle(self.curr_img_data, (i[3], i[4]), 1, (0,255,0), 1)
                     """              
                     if gui.show_only_inside_conts:
@@ -251,9 +250,7 @@ def video():
             elif gui.contour_overlay:
                 if gui.contours_updated:
                     contour_mask = np.zeros((FRAME_HEIGHT, FRAME_WIDTH, 3))
-                    
                     for c in gui.rt_tracker.cell_contours:
-                        print(c[0])
                         contour_mask = cv2.drawContours(contour_mask, [c],
                                                         -1, (255, 255, 255), thickness=cv2.FILLED)
                         
