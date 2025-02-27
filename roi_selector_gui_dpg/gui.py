@@ -122,13 +122,29 @@ class GUI:
                            callback=self.restart)
 
             dpg.add_slider_double(
-                label="Allowed ROI Area",
-                width=100,
+                height=150,
+                width=50,
+                pos=[shift+10,50],
+                vertical=True,
                 min_value=0.0,
                 max_value=frame_width*frame_height,
                 default_value=0.0,
-                callback=state_manager.roi_slider_size_callback
+                callback=state_manager.roi_slider_size_callback_min
             )
+
+            dpg.add_slider_double(
+                height=150,
+                width=50,
+                pos=[shift+70,50],
+                vertical=True,
+                min_value=0.0,
+                max_value=frame_width*frame_height,
+                default_value=frame_width*frame_height,
+                callback=state_manager.roi_slider_size_callback_max
+            )
+            
+            dpg.add_text("MIN SIZE", pos=(shift+10, 210))
+            dpg.add_text("MAX SIZE", pos=(shift+70, 210))
         return post_line
 
     def setup_keypress(self, state_manager):

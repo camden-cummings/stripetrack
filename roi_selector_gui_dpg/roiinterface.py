@@ -26,7 +26,8 @@ class ROIInterface:
         self.frame_width = frame_width
         self.frame_height = frame_height
         self.window = window
-        self.allowed_area = 0.0
+        self.allowed_area_min = 0.0
+        self.allowed_area_max = frame_width*frame_height
         self.shift = shift
 
     def left_mouse_press_callback(self):
@@ -181,7 +182,7 @@ class ROIInterface:
             allowed_rois = []
 
             for roi in self.rois:
-                if roi.area > self.allowed_area:
+                if self.allowed_area_max > roi.area > self.allowed_area_min:
                     allowed_rois.append(roi)
 
             lines = self.convert_rois_to_lines(allowed_rois)

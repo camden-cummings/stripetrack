@@ -116,11 +116,23 @@ class StateManager:
 
         self.roi_interface.rois.clear()
 
-    def roi_slider_size_callback(self, _, allowed_area):
+    def roi_slider_size_callback_min(self, _, allowed_area):
         """Shows or hides ROIs based on value of allowed area."""
-        self.roi_interface.allowed_area = allowed_area
+        self.roi_interface.allowed_area_min = allowed_area
+        
         for roi in self.roi_interface.rois:
-            if roi.area < allowed_area:
+            if roi.area < allowed_area or roi.area > self.roi_interface.allowed_area_max:
+                dpg.hide_item(roi.poly)
+            else:
+                dpg.show_item(roi.poly)
+
+
+    def roi_slider_size_callback_max(self, _, allowed_area):
+        """Shows or hides ROIs based on value of allowed area."""
+        self.roi_interface.allowed_area_max = allowed_area
+        
+        for roi in self.roi_interface.rois:
+            if roi.area > allowed_area or roi.area < self.roi_interface.allowed_area_min:
                 dpg.hide_item(roi.poly)
             else:
                 dpg.show_item(roi.poly)
