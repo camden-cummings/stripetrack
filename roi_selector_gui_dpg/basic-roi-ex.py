@@ -1,12 +1,12 @@
 import dearpygui.dearpygui as dpg
-from visibility_manager import VisibilityManager
+from gui import GUI
 
 dpg.create_context()
 
 frame_width = 500
 frame_height = 500
 
-m = VisibilityManager("file_save_path", frame_width, frame_height)
+m = GUI("file_save_path", frame_width, frame_height)
 
 while dpg.is_dearpygui_running():
     dpg.render_dearpygui_frame()
