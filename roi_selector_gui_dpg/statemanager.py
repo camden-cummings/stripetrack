@@ -155,3 +155,4 @@ class StateManager:
             self.roi_interface.delete()
         else:
             self.line_interface.delete()
+            
