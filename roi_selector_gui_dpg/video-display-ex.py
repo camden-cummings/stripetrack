@@ -2,19 +2,19 @@ import dearpygui.dearpygui as dpg
 import cv2
 import numpy as np
 
-from visibility_manager import VisibilityManager
+from gui import GUI
 
 dpg.create_context()
 
 fp = "/home/chamomile/Thyme-lab/data/vids/social_and_many_well/"
-ex_fn = fp + "fc2_save_2025-01-31-125333-0000.mp4"
+ex_fn = fp + "fc2_save_2025-02-06-151155-0000.mp4"
 
 vidcap = cv2.VideoCapture(ex_fn)
 
 frame_width = int(vidcap.get(3))
 frame_height = int(vidcap.get(4))
 
-m = VisibilityManager(ex_fn, frame_width, frame_height)
+m = GUI(ex_fn, frame_width, frame_height)
 while dpg.is_dearpygui_running():
     cont, curr_img = vidcap.read()
         

@@ -12,11 +12,13 @@ import numpy as np
 import dearpygui.dearpygui as dpg
 from shapely.geometry import Point, Polygon
 
-from roi_selector_gui_dpg.roipoly import RoiPoly
+from roipoly import RoiPoly
+from helpers import get_mouse_pos
 
 class ROIInterface:
     """Defines useful methods for interacting (moving, rotating) polygons."""
-    def __init__(self, frame_height, frame_width, window, shift=(0,0)):
+
+    def __init__(self, frame_height, frame_width, window, shift=(0, 0)):
         self.rois = []
         self.selected_polygon = None
         self.selected_polygon_vert = None
@@ -24,19 +26,20 @@ class ROIInterface:
         self.frame_width = frame_width
         self.frame_height = frame_height
         self.window = window
-        self.allowed_area = 0.0
+        self.allowed_area_min = 0.0
+        self.allowed_area_max = frame_width*frame_height
         self.shift = shift
-        
+
     def left_mouse_press_callback(self):
         """When mouse clicked, checks if current mouse position is near to a polygon or a polygon vertex."""
-        x, y = self.get_mouse_pos()
+        x, y = get_mouse_pos(self.shift)
 
         if self.drag_polygon is None and self.selected_polygon_vert is None:
             self.check_for_selection((x, y))
 
     def motion_notify_callback(self):
         """When mouse moving, if drag polygon, moves, if selected polygon vert, rotates."""
-        x, y = self.get_mouse_pos()
+        x, y = get_mouse_pos(self.shift)
 
         if self.drag_polygon is not None:
             self.move()
@@ -67,25 +70,24 @@ class ROIInterface:
 
             if mouse_pt.within(n_poly):
                 self.drag_polygon = poly
-                
+
             for point in poly.lines:
                 dist = math.dist(point, mouse_pos)
 
                 if dist < 40:  # if
-                    if closest != ():
+                    if closest:
                         if dist < closest[1]:
                             closest = ((poly, point), dist)
                     else:
                         closest = ((poly, point), dist)
 
+        if closest:
+            self.selected_polygon = closest[0][0]
+            self.selected_polygon_vert = closest[0][1]
 
-        if closest != ():        
-            self.selected_polygon_vert = point
-            self.selected_polygon = poly 
-            
     def check_for_hover(self):
         """Check if mouse hovering over poly or poly vertex."""
-        mouse_pos = self.get_mouse_pos()
+        mouse_pos = get_mouse_pos(self.shift)
         for roi in self.rois:
             mouse_pt = Point(mouse_pos)
             n_poly = Polygon(roi.lines)
@@ -94,15 +96,32 @@ class ROIInterface:
                 return roi
         return None
 
+    def copy(self):
+        """Copy hovered ROI."""
+        roi = self.check_for_hover()
+
+        if roi is not None:
+            new_roi = RoiPoly(self.window, self.frame_width,
+                              self.frame_height, lines=roi.lines)
+            self.rois.append(new_roi)
+
+    def delete(self):
+        """Delete hovered ROI."""
+        roi = self.check_for_hover()
+
+        if roi is not None:
+            dpg.delete_item(roi.poly)
+            self.rois.remove(roi)
+
     def move(self):
         """Move polygon to current mouse position."""
-        x, y = self.get_mouse_pos()
+        x, y = get_mouse_pos(self.shift)
         poly = self.drag_polygon.lines
         centr = Polygon(poly).centroid
 
         translated_poly = [[p[0] - centr.x + x, p[1] - centr.y + y]
                            for p in poly]
-        
+
         for point in translated_poly:
             if point[0] > self.shift[0]+self.frame_width or self.shift[0] > point[0]:
                 break
@@ -130,47 +149,52 @@ class ROIInterface:
                            points=self.selected_polygon.lines)
 
     def convert_rois_to_lines(self, rois):
+        """Converts all ROIPolys to numpy arrays."""
         lines = []
         for roi in rois:
             l = roi.lines
             poly = []
-            
-            for i in l:
-                poly.append([i[0]-self.shift[0], i[1]-self.shift[1]])
-                
+
+            for point in l:
+                poly.append([point[0]-self.shift[0], point[1]-self.shift[1]])
+
             lines.append(poly)
         return lines
-        
+
     def convert_lines_to_rois(self, lines):
+        """Converts numpy arrays to ROIPolys."""
         new_rois = []
         for line in lines:
             poly_lines = []
-            
+
             for point in line:
-                poly_lines.append([point[0]+self.shift[0], point[1]+self.shift[1]])
-            
+                poly_lines.append(
+                    [point[0]+self.shift[0], point[1]+self.shift[1]])
+
             new_rois.append(
                 RoiPoly(self.window, self.frame_width, self.frame_height, self.shift, poly_lines))
 
         self.rois.extend(new_rois)
-    
-    def save_rois(self, _, app_data: dict): 
+
+    def save_rois_callback(self, _, app_data: dict):
+        """Saves all ROIs to a file."""
         with open(app_data["file_path_name"], 'wb') as filename:
             allowed_rois = []
-            
-            for roi in self.rois: 
-                if roi.area > self.allowed_area:
+
+            for roi in self.rois:
+                if self.allowed_area_max > roi.area > self.allowed_area_min:
                     allowed_rois.append(roi)
-            
+
             lines = self.convert_rois_to_lines(allowed_rois)
             pickle.dump(lines, filename)
 
-    def load_rois(self, _, app_data: dict):
+    def load_rois_callback(self, _, app_data: dict):
+        """Loads all ROIs into current canvas."""
         with open(app_data["file_path_name"], 'rb') as filename:
             lines = pickle.load(filename)
-        
+
         self.convert_lines_to_rois(lines)
-        
+
     def find_future_posn(self, cursor_posn: tuple[int, int], centr: tuple[int, int]) \
             -> tuple[tuple[int, int], tuple[int, int]]:
         """
@@ -242,8 +266,3 @@ class ROIInterface:
                     theta = -theta
 
         return theta
-
-    def get_mouse_pos(self):
-        x, y = dpg.get_mouse_pos()
-        
-        return x+self.shift[0], y+self.shift[1]
