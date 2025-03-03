@@ -33,6 +33,7 @@ class GUIHelpers(VisibilityManager):
         self.mode_calculated = False
         
     def start(self, _, __):
+        #TODO check here if GUI save file exists
         if self.mode_calculated:
             self.start_recording = True
         
@@ -113,7 +114,7 @@ class GUIHelpers(VisibilityManager):
                             with dpg.group(width = 300):
                                 dpg.add_slider_float(label="Threshold", callback=self.contour_definer.threshold_change, min_value=0, max_value=255, default_value=self.contour_definer.thresh)            
                                 dpg.add_slider_float(label="Centroid Size", callback=self.contour_definer.centroid_change, max_value=1000, default_value=self.contour_definer.centroid_size)
-                            status = dpg.add_text("Status: Not Ready")
+                            status = dpg.add_text("Status: Calculating Mode / Not Ready")
     
                             dpg.add_checkbox(label = "Only Show ROIs Inside Selected Contours", callback=self.only_selected_contours)
                         

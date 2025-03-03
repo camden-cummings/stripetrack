@@ -129,7 +129,7 @@ class VisibilityManager:
         with dpg.theme() as canvas_theme, dpg.theme_component():
             dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 0,0)
         
-        with dpg.window(label="Video player", pos=(50,50), width = frame_width, height=frame_height) as window:
+        with dpg.window(label="Video player", pos=(50,50), width = frame_width, height = frame_height) as window:
             state_manager = StateManager(frame_width, frame_height, window)
             self.setup_keypress(state_manager)
             

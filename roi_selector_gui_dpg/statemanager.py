@@ -154,14 +154,14 @@ class StateManager:
             
             for point_num in range(1, 3, 1): 
                 x, y = config_dict["p"+str(point_num)]
-                
-                if x == self.frame_width or x == 0.0:
+
+                if x == self.frame_width+self.shift[0] or x == self.shift[0]:
                     if point_num == 1:
                         dpg.configure_item(line, p1=[x, y-dy])
                     else:
                         dpg.configure_item(line, p2=[x, y-dy])
                 
-                elif y == self.frame_height or y == 0.0:
+                elif y == self.frame_height+self.shift[1] or y == self.shift[1]:
                     if point_num == 1:
                         dpg.configure_item(line, p1=[x-dx, y])
                     else:

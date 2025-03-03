@@ -16,41 +16,41 @@ from tracker.cell_finder_helpers.calc_mode import calc_mode
 from AcquireAndDisplayClass import get_image
 from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_device_serial_number
 from gui_helpers import GUIHelpers
-from tracker.helpers.centroid_manip import find_centroid_of_contour, check_masked_image
+from tracker.helpers.centroid_manip import find_centroid_of_contour, check_masked_image, generate_row_col
 from skimage.metrics import structural_similarity
-from tracker.helpers.centroid_manip import ignored_cen, generate_cen_masked_image, check_masked_image, generate_row_col
 
 global continue_recording
 global run_once
 run_once = True
-DESIRED_MODE_FRAMES = 2
+DESIRED_MODE_FRAMES = 50
    
-def find_centroids(comp_img, curr_img_gray, frame_count, min_area, max_area, shape_of_rows, cell_contours):
+def find_centroids(comp_img, curr_img_gray, frame_count, time, min_area, max_area, shape_of_rows, cell_contours):
     # Compute SSIM between the two images
     (score, diff) = structural_similarity(comp_img, curr_img_gray, full=True)
 
     diff = (diff * 255).astype("uint8")
     diff_box = cv2.merge([diff, diff, diff])
 
-    thresh = cv2.threshold(diff, 150, 255, cv2.THRESH_BINARY)[1]
+    thresh = cv2.threshold(diff, gui.contour_definer.thresh, 255, cv2.THRESH_BINARY)[1]
     contours = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contours = contours[0] if len(contours) == 2 else contours[1]
 
-    cv2.drawContours(diff, contours, -1, (0,255,0), 1)
+#    cv2.drawContours(diff, contours, -1, (0,255,0), 1)
 
     contours = [c for c in contours if min_area < cv2.contourArea(c) < max_area]
 
     all_centr_in_frame = []
-        
+    
+    """
     for row, col in generate_row_col(shape_of_rows):
         cell_count = row * shape_of_rows[row] + col
 
-        darkest_pixel_val = 255 
+        #darkest_pixel_val = 255 
         posns = []
         for c in contours:
             x, y, w, h = cv2.boundingRect(c)
 
-            point_x, point_y = (int(x + w / 2), int(y + h / 2))
+            point_x, point_y = (int(x + w / 2), int(y + h / 2)) #not exact as find_centroid_of_contour, but faster
 
             in_polygon = cv2.pointPolygonTest(cell_contours[cell_count], (point_x, point_y), False)
 
@@ -60,17 +60,54 @@ def find_centroids(comp_img, curr_img_gray, frame_count, min_area, max_area, sha
 
                 posns.append(((point_x, point_y), gray_avg))
 
-                if gray_avg < darkest_pixel_val:
-                    darkest_pixel_val = gray_avg
+                #if gray_avg < darkest_pixel_val:
+                #    darkest_pixel_val = gray_avg
 
         ten_darkest_centroids = sorted(posns, key=lambda posn: posn[1])[:10]
 
-        for c in ten_darkest_centroids:
-            all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
+        if len(ten_darkest_centroids) > 0:
+            all_centr_in_frame.append([frame_count, row, col, ten_darkest_centroids[0][0][0], ten_darkest_centroids[0][0][1]])
+        #for c in ten_darkest_centroids:
+        #    all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
+    """
+    
+    
 
-    return all_centr_in_frame
+    #darkest_pixel_val = 255 
+    posns = [[[] for j in range(shape_of_rows[i])] for i in range(len(shape_of_rows))]
+    for c in contours:
+        x, y, w, h = cv2.boundingRect(c)
+
+        point_x, point_y = (int(x + w / 2), int(y + h / 2)) #not as exact as find_centroid_of_contour, but faster
     
+        if not check_masked_image((point_x, point_y), gui.rt_tracker.mask):
+            for row, col in generate_row_col(shape_of_rows):
+                cell_count = row * shape_of_rows[row] + col
+        
+                in_polygon = cv2.pointPolygonTest(cell_contours[cell_count], (point_x, point_y), False)
+        
+                if in_polygon >= 0:
+                    R, G, B, _ = np.array(cv2.mean(diff_box[y:y + h, x:x + w])).astype(np.uint8)
+                    gray_avg = 0.299 * R + 0.587 * G + 0.114 * B
+        
+                    posns[row][col].append(((point_x, point_y), gray_avg))
+                    
+                    break
+                    #if gray_avg < darkest_pixel_val:
+                     #   darkest_pixel_val = gray_avg
+
+    for row, col in generate_row_col(shape_of_rows):
+        ten_darkest_centroids = sorted(posns[row][col], key=lambda posn: posn[1])[:10]
+        if len(ten_darkest_centroids) > 0:
+            all_centr_in_frame.append([time, frame_count, row, col, ten_darkest_centroids[0][0][0], ten_darkest_centroids[0][0][1]])
+            #for c in ten_darkest_centroids:
+            #    all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
+        
+    return all_centr_in_frame, contours
     
+FRAMES_TO_SAVE_AFTER = 100
+pre_output_filepath = 'pre-processed.csv'
+
 class RunCV:
     def __init__(self):
         self.async_result = None
@@ -80,11 +117,12 @@ class RunCV:
         self.beeg_array = np.zeros((FRAME_HEIGHT, FRAME_WIDTH))
         self.mask = None
         self.masked_mode_noblur_img = None
-    
+        self.detected_centroids = []
+        
     def find_mode(self, frame_counter):
         global run_once
     
-        if len(moviedeq) < DESIRED_MODE_FRAMES:# and frame_counter % 50 == 0:
+        if len(moviedeq) < DESIRED_MODE_FRAMES and frame_counter % 50 == 0:
             moviedeq.append(self.curr_img)
         elif len(moviedeq) >= DESIRED_MODE_FRAMES and run_once == True:
             pool = Pool(processes=1)
@@ -99,21 +137,43 @@ class RunCV:
             gui.rt_tracker.standard_image_noise = gui.rt_tracker.CV_image_noise_light_background(self.mode_noblur_img)
             dpg.configure_item(gui.status, default_value="Status: Ready")
         
-    def run_CV(self, frame_counter):
+    def run_CV(self, frame_counter, time):
         if self.mask is not None:
             match gui.contour_definer.cv_method:
-                case "Structural Similarity":            
+                case "Structural Similarity":  
+                    #str_pr = cProfile.Profile()
+                    #str_pr.enable()
+                    start_frame = 0
                     gui.rt_tracker.MIN_AREA = gui.contour_definer.centroid_size
                     #contours, diff = gui.rt_tracker.structural_sim_contours(self.curr_img, self.mode_noblur_img, min_thresh = gui.contour_definer.thresh) 
     
                     masked_curr_img = cv2.bitwise_and(
                         self.curr_img, self.curr_img, mask=self.mask)
 
-                    all_centr_in_frame = find_centroids(self.masked_mode_noblur_img, masked_curr_img, frame_counter, gui.contour_definer.centroid_size, 500000,
+                    all_centr_in_frame, contours = find_centroids(self.masked_mode_noblur_img, masked_curr_img, frame_counter, time, gui.contour_definer.centroid_size, 500000,
                                                       gui.rt_tracker.shape_of_rows, gui.rt_tracker.cell_contours)
-                                        
+                    
+                    self.detected_centroids.extend(all_centr_in_frame)
+                    
+                   # cv2.drawContours(self.curr_img_data, contours, -1, (0,255,0), 1)
+
                     for i in all_centr_in_frame:
-                        cv2.circle(self.curr_img_data, (i[3], i[4]), 1, (0,255,0), 1)
+                        cv2.circle(self.curr_img_data, (i[4], i[5]), 1, (0,255,0), 1)
+                        
+                    if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(self.detected_centroids) > 0:
+                        if start_frame == 0:
+                            new = pd.DataFrame(np.matrix(self.detected_centroids), columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
+                            new.to_csv(pre_output_filepath, sep=',', index=False)
+                        else:
+                            new = pd.DataFrame(np.matrix(self.detected_centroids), columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
+                            new.to_csv(pre_output_filepath, sep=',', mode='a', index=False, header=False)
+                            self.detected_centroids.clear()
+                    #str_pr.disable()
+                    #s = io.StringIO()
+                    #sortby = SortKey.CUMULATIVE
+                    #ps = pstats.Stats(str_pr, stream=s).sort_stats(sortby)
+                    #ps.print_stats()
+                    #print(s.getvalue())
                     """              
                     if gui.show_only_inside_conts:
                         for c in contours:
@@ -208,9 +268,9 @@ def video():
                 if first_time: #setup all necessary pieces    
                     at_time, command_string, type_of_video = process_command_string(
                         schedule_times.iloc[counter])
-                    
+                    print("COMMANDS: ", at_time, command_string, type_of_video)
                     if type_of_video == 0:
-                        duration = None
+                        duration = 0
                     elif type_of_video == 1:
                         duration = 1
                     elif type_of_video == 2:
@@ -231,21 +291,23 @@ def video():
                     first_time = False
                     not_written_to_arduino = True
                     
-                if timer.formatted_time(timer.now()) == at_time:
+                if (timer.formatted_time(timer.now()) == at_time and (type_of_video == 1 or type_of_video == 0)) or (timer.formatted_time(timer.now()) >= at_time and type_of_video == 2):
                     if end_time == np.inf:
                         end_time = int(timer.now()) + duration
-                    result.write(image)
+                        
+                    if duration != 0:
+                        result.write(image)
                     
                     if not_written_to_arduino:
                         dev.write(bytes(command_string, 'utf-8'))
                         not_written_to_arduino = False
-    
+                    
                 if (timer.now() >= end_time):
                     counter += 1    
                     first_time = True
                     end_time = np.inf
 
-            elif r.mode_noblur_img is None:
+            if r.mode_noblur_img is None:
                 r.find_mode(frame_counter)
             elif gui.contour_overlay:
                 if gui.contours_updated:
@@ -261,8 +323,9 @@ def video():
                         r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
                     
                     gui.contours_updated = False
-
-                r.run_CV(frame_counter)
+                
+                time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
+                r.run_CV(frame_counter, time_)
             
             data = np.flip(r.curr_img_data, 2)
             data = data.ravel()
