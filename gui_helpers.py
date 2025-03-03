@@ -6,7 +6,7 @@ Created on Tue Feb 18 11:57:57 2025
 """
 from pathlib import Path
 from roi_selector_gui_dpg.statemanager import StateManager
-from roi_selector_gui_dpg.visibility_manager import VisibilityManager
+from roi_selector_gui_dpg.gui import GUI
 import dearpygui.dearpygui as dpg
 from tracker.tracker_options.real_time_tracker import RealTimeTracker
 import subprocess
@@ -16,7 +16,7 @@ from contour_definer import ContourDefiner
 from tracker.roi_manip import convert_to_contours
 import numpy as np
 
-class GUIHelpers(VisibilityManager):
+class GUIHelpers(GUI):
     def __init__(self, frame_height, frame_width):
         self.contour_definer = ContourDefiner()
         self.FRAME_WIDTH = frame_width
