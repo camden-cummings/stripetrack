@@ -15,10 +15,11 @@ from shapely.geometry import Point, Polygon
 from roipoly import RoiPoly
 from helpers import get_mouse_pos
 
-class ROIInterface:
-    """Defines useful methods for interacting (moving, rotating) polygons."""
 
-    def __init__(self, frame_height, frame_width, window, shift=(0, 0)):
+class ROIInterface:
+    """Defines useful methods for interacting with (moving, rotating) polygons."""
+
+    def __init__(self, window, frame_width, frame_height, shift=(0, 0)):
         self.rois = []
         self.selected_polygon = None
         self.selected_polygon_vert = None
@@ -28,9 +29,9 @@ class ROIInterface:
         self.frame_height = frame_height
         self.window = window
         self.allowed_area_min = 0.0
-        self.allowed_area_max = frame_width*frame_height
+        self.allowed_area_max = self.frame_width*self.frame_height
         self.shift = shift
-        
+
     def left_mouse_press_callback(self):
         """When mouse clicked, checks if current mouse position is near to a polygon or a polygon vertex."""
         x, y = get_mouse_pos(self.shift)
@@ -39,7 +40,7 @@ class ROIInterface:
             self.check_for_selection((x, y))
 
     def motion_notify_callback(self):
-        """When mouse moving, if drag polygon, moves, if selected polygon vert, rotates."""
+        """When mouse moving, if drag polygon, moves, if selected polygon vertex, rotates."""
         x, y = get_mouse_pos(self.shift)
 
         if self.drag_polygon is not None:
@@ -48,11 +49,12 @@ class ROIInterface:
             centr = Polygon(self.selected_polygon.lines).centroid
 
             mouse_posn_on_circle = self.find_future_posn((x, y), centr)
-            theta = math.atan2(mouse_posn_on_circle[1]-centr.y, mouse_posn_on_circle[0]-centr.x)
-            
+            theta = math.atan2(
+                mouse_posn_on_circle[1]-centr.y, mouse_posn_on_circle[0]-centr.x)
+
             if self.prev is not None:
                 self.rotate(self.prev - theta)
-            
+
             self.prev = theta
 
     def left_mouse_release_callback(self):
@@ -137,7 +139,7 @@ class ROIInterface:
         """Rotate polygon to angle."""
         poly = self.selected_polygon.lines
         centr = Polygon(poly).centroid
-        
+
         rot_matrix = [[math.cos(angle), -math.sin(angle)],
                       [math.sin(angle), math.cos(angle)]]
         rotated_poly = np.array([(p[0]-centr.x, p[1]-centr.y) for p in poly]).dot(
