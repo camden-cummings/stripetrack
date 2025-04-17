@@ -85,7 +85,7 @@ class GUIHelpers(GUI):
                         
                     with dpg.child_window(border=False):
                         with dpg.group() as roi_and_line_selection:
-                            dpg.add_combo(("ROI", "Line"), label="Mode", width=50, pos=[right_shift,0], callback=self.change, default_value="ROI")
+                            dpg.add_combo(("ROI", "Line"), label="Mode", width=50, pos=[right_shift,0], callback=self.change_selection_mode, default_value="ROI")
                             
                             path = Path(os.getcwd())
                             curr_dir = path.parent

@@ -38,7 +38,7 @@ global continue_recording
 continue_recording = True
 
 #FRAME_HEIGHT, FRAME_WIDTH = 1200,1920
-FRAME_HEIGHT, FRAME_WIDTH = 660, 1088
+FRAME_HEIGHT, FRAME_WIDTH = 652, 1024
 
 def handle_close(evt):
     """
@@ -66,16 +66,17 @@ def setup(cam, nodemap, nodemap_tldevice):
         print('Unable to set stream buffer handling mode.. Aborting...')
         return False
 
+    print(cam)
     # Retrieve integer value from entry node
     node_newestonly_mode = node_newestonly.GetValue()
 
     # Set integer value from entry node as new value of enumeration node
     node_bufferhandling_mode.SetIntValue(node_newestonly_mode)
     
-    #nodemap_applayer = cam.GetNodeMap()
+    nodemap_applayer = cam.GetNodeMap()
     
-    #node_fps = PySpin.CFloatPtr(nodemap_applayer.GetNode("AcquisitionFrameRate"))
-    #node_fps.SetValue(100.0)
+    node_fps = PySpin.CFloatPtr(nodemap_applayer.GetNode("AcquisitionFrameRate"))
+    node_fps.SetValue(100.0)
             #print('*** IMAGE ACQUISITION ***\n')
     try:
         node_acquisition_mode = PySpin.CEnumerationPtr(nodemap.GetNode('AcquisitionMode'))

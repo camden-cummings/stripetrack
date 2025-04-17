@@ -15,7 +15,8 @@ def setup(system):
     cam_list = system.GetCameras()
 
     num_cameras = cam_list.GetSize()
-
+    
+    print(cam_list)
     print('Number of cameras detected: %d' % num_cameras)
 
     # Finish if there are no cameras
@@ -38,7 +39,7 @@ def setup_nodemap(cam):
 
     # Initialize camera
     cam.Init()
-
+    
     # Retrieve GenICam nodemap
     nodemap = cam.GetNodeMap()
 
@@ -90,3 +91,5 @@ def get_device_serial_number(nodemap_tldevice):
     if PySpin.IsReadable(node_device_serial_number):
         device_serial_number = node_device_serial_number.GetValue()
         print('Device serial number retrieved as %s...' % device_serial_number)
+        
+        return device_serial_number

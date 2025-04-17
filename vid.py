@@ -24,14 +24,14 @@ global run_once
 run_once = True
 DESIRED_MODE_FRAMES = 50
    
-def find_centroids(comp_img, curr_img_gray, frame_count, time, min_area, max_area, shape_of_rows, cell_contours):
+def find_centroids(comp_img, curr_img_gray, frame_count, time, min_area, max_area, shape_of_rows, cell_contours, thresh, mask):
     # Compute SSIM between the two images
     (score, diff) = structural_similarity(comp_img, curr_img_gray, full=True)
 
     diff = (diff * 255).astype("uint8")
     diff_box = cv2.merge([diff, diff, diff])
 
-    thresh = cv2.threshold(diff, gui.contour_definer.thresh, 255, cv2.THRESH_BINARY)[1]
+    thresh = cv2.threshold(diff, thresh, 255, cv2.THRESH_BINARY)[1]
     contours = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contours = contours[0] if len(contours) == 2 else contours[1]
 
@@ -80,7 +80,7 @@ def find_centroids(comp_img, curr_img_gray, frame_count, time, min_area, max_are
 
         point_x, point_y = (int(x + w / 2), int(y + h / 2)) #not as exact as find_centroid_of_contour, but faster
     
-        if not check_masked_image((point_x, point_y), gui.rt_tracker.mask):
+        if not check_masked_image((point_x, point_y), mask):
             for row, col in generate_row_col(shape_of_rows):
                 cell_count = row * shape_of_rows[row] + col
         
@@ -109,49 +109,55 @@ FRAMES_TO_SAVE_AFTER = 100
 pre_output_filepath = 'pre-processed.csv'
 
 class RunCV:
-    def __init__(self):
+    def __init__(self, FRAME_WIDTH, FRAME_HEIGHT, output_filepath, gui):
         self.async_result = None
         self.mode_noblur_img = None
         self.curr_img = None
         self.curr_img_data = None
         self.beeg_array = np.zeros((FRAME_HEIGHT, FRAME_WIDTH))
+        self.FRAME_HEIGHT = FRAME_HEIGHT
+        self.FRAME_WIDTH = FRAME_WIDTH
         self.mask = None
         self.masked_mode_noblur_img = None
         self.detected_centroids = []
+        self.output_filepath = output_filepath
+        self.moviedeq = []
+        self.gui = gui
         
     def find_mode(self, frame_counter):
+        #print('finding mode', len(self.moviedeq), DESIRED_MODE_FRAMES)
         global run_once
-    
-        if len(moviedeq) < DESIRED_MODE_FRAMES and frame_counter % 50 == 0:
-            moviedeq.append(self.curr_img)
-        elif len(moviedeq) >= DESIRED_MODE_FRAMES and run_once == True:
+
+        if len(self.moviedeq) < DESIRED_MODE_FRAMES and frame_counter % 50 == 0:
+            self.moviedeq.append(self.curr_img)
+        elif len(self.moviedeq) >= DESIRED_MODE_FRAMES and run_once == True:
             pool = Pool(processes=1)
-            self.async_result = pool.apply_async(calc_mode, (moviedeq, FRAME_HEIGHT, FRAME_WIDTH))
+            self.async_result = pool.apply_async(calc_mode, (self.moviedeq, self.FRAME_HEIGHT, self.FRAME_WIDTH))
             #mode_noblur_img = calc_mode(moviedeq, FRAME_HEIGHT, FRAME_WIDTH)
             
             run_once = False
 
         if self.async_result is not None and self.async_result.ready():
             self.mode_noblur_img = self.async_result.get()
-            gui.mode_calculated = True
-            gui.rt_tracker.standard_image_noise = gui.rt_tracker.CV_image_noise_light_background(self.mode_noblur_img)
-            dpg.configure_item(gui.status, default_value="Status: Ready")
+            self.gui.mode_calculated = True
+            self.gui.rt_tracker.standard_image_noise = self.gui.rt_tracker.CV_image_noise_light_background(self.mode_noblur_img)
+            dpg.configure_item(self.gui.status, default_value="Status: Ready")
         
     def run_CV(self, frame_counter, time):
         if self.mask is not None:
-            match gui.contour_definer.cv_method:
+            match self.gui.contour_definer.cv_method:
                 case "Structural Similarity":  
                     #str_pr = cProfile.Profile()
                     #str_pr.enable()
                     start_frame = 0
-                    gui.rt_tracker.MIN_AREA = gui.contour_definer.centroid_size
+                    self.gui.rt_tracker.MIN_AREA = self.gui.contour_definer.centroid_size
                     #contours, diff = gui.rt_tracker.structural_sim_contours(self.curr_img, self.mode_noblur_img, min_thresh = gui.contour_definer.thresh) 
     
                     masked_curr_img = cv2.bitwise_and(
                         self.curr_img, self.curr_img, mask=self.mask)
 
-                    all_centr_in_frame, contours = find_centroids(self.masked_mode_noblur_img, masked_curr_img, frame_counter, time, gui.contour_definer.centroid_size, 500000,
-                                                      gui.rt_tracker.shape_of_rows, gui.rt_tracker.cell_contours)
+                    all_centr_in_frame, contours = find_centroids(self.masked_mode_noblur_img, masked_curr_img, frame_counter, time, self.gui.contour_definer.centroid_size, 500000,
+                                                      self.gui.rt_tracker.shape_of_rows, self.gui.rt_tracker.cell_contours, self.gui.contour_definer.thresh, self.gui.rt_tracker.mask)
                     
                     self.detected_centroids.extend(all_centr_in_frame)
                     
@@ -163,10 +169,10 @@ class RunCV:
                     if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(self.detected_centroids) > 0:
                         if start_frame == 0:
                             new = pd.DataFrame(np.matrix(self.detected_centroids), columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
-                            new.to_csv(pre_output_filepath, sep=',', index=False)
+                            new.to_csv(self.output_filepath, sep=',', index=False)
                         else:
                             new = pd.DataFrame(np.matrix(self.detected_centroids), columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
-                            new.to_csv(pre_output_filepath, sep=',', mode='a', index=False, header=False)
+                            new.to_csv(self.output_filepath, sep=',', mode='a', index=False, header=False)
                             self.detected_centroids.clear()
                     #str_pr.disable()
                     #s = io.StringIO()
@@ -187,21 +193,21 @@ class RunCV:
                     
                 case "Real Time":
                     if any([frame_counter % x == 0 for x in range(50,59,1)]):            
-                        noise_image = gui.rt_tracker.CV_image_noise_light_background(self.curr_img)
+                        noise_image = self.gui.rt_tracker.CV_image_noise_light_background(self.curr_img)
                         self.beeg_array += noise_image
                     if frame_counter % 60 == 0:                    
                         self.beeg_array = self.beeg_array/3
                         self.beeg_array[self.beeg_array > 0] = 255
-                        gui.rt_tracker.standard_image_noise = self.beeg_array
+                        self.gui.rt_tracker.standard_image_noise = self.beeg_array
                     
-                    gui.rt_tracker.MIN_AREA = gui.contour_definer.centroid_size
-                    sharpened_contours, contour_img = gui.rt_tracker.new_CV(self.curr_img, min_thresh = gui.contour_definer.thresh)
+                    self.gui.rt_tracker.MIN_AREA = self.gui.contour_definer.centroid_size
+                    sharpened_contours, contour_img = self.gui.rt_tracker.new_CV(self.curr_img, min_thresh = self.gui.contour_definer.thresh)
                     
-                    if gui.show_only_inside_conts:
+                    if self.gui.show_only_inside_conts:
                         for c in sharpened_contours:
                             cx, cy = find_centroid_of_contour(c)
     
-                            if not check_masked_image((cx, cy), gui.rt_tracker.mask):
+                            if not check_masked_image((cx, cy), self.gui.rt_tracker.mask):
                                 cv2.drawContours(self.curr_img_data, c, -1, (255, 0, 0), 1)
                     else:
                         cv2.drawContours(self.curr_img_data, sharpened_contours, -1, (255, 0, 0), 1)  
@@ -228,18 +234,19 @@ def video():
 
     # Run example on each camera
     cam = cam_list[0]
-
+        
     try:
         nodemap, nodemap_tldevice = setup_nodemap(cam)
         print('*** IMAGE ACQUISITION ***\n')
-
+        
         set_node_acquisition_mode(nodemap)
 
         cam.BeginAcquisition()
 
+        node_fps = PySpin.CFloatPtr(nodemap.GetNode("AcquisitionFrameRate"))
+        node_fps.SetValue(100.0)
+
         print('Acquiring images...')
-        
-        get_device_serial_number(nodemap_tldevice)
         
         timer = PreciseTime()
 
@@ -247,20 +254,20 @@ def video():
         pr.enable()
         
         counter = 0
-        schedule_times = pd.read_csv(os.getcwd() + "\\scheduled-events", sep="\t", header=None)
+        schedule_times = pd.read_csv(os.getcwd() + "\\shortened-schedule", sep="\t", header=None)
         num_of_instructions = schedule_times.shape[0]
         first_time = True
         end_time = np.inf
         
         frame_counter = 0
         
-        r = RunCV()
+        r = RunCV(FRAME_WIDTH, FRAME_HEIGHT, pre_output_filepath, gui)
         dev = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
 
         while counter < num_of_instructions and dpg.is_dearpygui_running():
             image = get_image(cam)
             image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-             
+            
             r.curr_img = image
             r.curr_img_data = image_data
             
@@ -276,14 +283,17 @@ def video():
                     elif type_of_video == 2:
                         duration = 108000
                     
-                    if duration != None:
+                    if duration != None:                        
                         vid_name = "_".join(str(at_time).strip("[]").split(", ")) + "-" + str(counter)
-                        
+                        node_fps = PySpin.CFloatPtr(nodemap.GetNode("AcquisitionFrameRate"))
+
                         if type_of_video == 1:
+                            node_fps.SetValue(285.0)
                             result = cv2.VideoWriter(f'{vid_name}.avi',
                                                      cv2.VideoWriter_fourcc(*'MJPG'),
                                                      285, (FRAME_WIDTH, FRAME_HEIGHT), False)
                         else:
+                            node_fps.SetValue(30.0)
                             result = cv2.VideoWriter(f'{vid_name}-long.avi',
                                                      cv2.VideoWriter_fourcc(*'MJPG'),
                                                          30, (FRAME_WIDTH, FRAME_HEIGHT), False)
@@ -369,15 +379,9 @@ if __name__ == '__main__':
     continue_recording = True
     contour_overlay = False
 
-    FRAME_HEIGHT, FRAME_WIDTH = 850, 1248
-
-    moviedeq = []
+    FRAME_HEIGHT, FRAME_WIDTH = 652, 1024
 
     dpg.create_context()
-
-    #mode_noblur_path = ex_fn[:-4] + "-mode.png"
-    #mode_noblur_img = cv2.cvtColor(cv2.imread(mode_noblur_path), cv2.COLOR_BGR2GRAY)
-
 
     gui = GUIHelpers(FRAME_HEIGHT, FRAME_WIDTH)
 
