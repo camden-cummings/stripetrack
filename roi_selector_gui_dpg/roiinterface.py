@@ -15,19 +15,21 @@ from shapely.geometry import Point, Polygon
 from roipoly import RoiPoly
 from helpers import get_mouse_pos
 
-class ROIInterface:
-    """Defines useful methods for interacting (moving, rotating) polygons."""
 
-    def __init__(self, frame_height, frame_width, window, shift=(0, 0)):
+class ROIInterface:
+    """Defines useful methods for interacting with (moving, rotating) polygons."""
+
+    def __init__(self, window, frame_width, frame_height, shift=(0, 0)):
         self.rois = []
         self.selected_polygon = None
         self.selected_polygon_vert = None
+        self.prev = None
         self.drag_polygon = None
         self.frame_width = frame_width
         self.frame_height = frame_height
         self.window = window
         self.allowed_area_min = 0.0
-        self.allowed_area_max = frame_width*frame_height
+        self.allowed_area_max = self.frame_width*self.frame_height
         self.shift = shift
 
     def left_mouse_press_callback(self):
@@ -38,7 +40,7 @@ class ROIInterface:
             self.check_for_selection((x, y))
 
     def motion_notify_callback(self):
-        """When mouse moving, if drag polygon, moves, if selected polygon vert, rotates."""
+        """When mouse moving, if drag polygon, moves, if selected polygon vertex, rotates."""
         x, y = get_mouse_pos(self.shift)
 
         if self.drag_polygon is not None:
@@ -46,20 +48,21 @@ class ROIInterface:
         elif self.selected_polygon is not None:
             centr = Polygon(self.selected_polygon.lines).centroid
 
-            v, future_v = self.find_future_posn((x, y), centr)
+            mouse_posn_on_circle = self.find_future_posn((x, y), centr)
+            theta = math.atan2(
+                mouse_posn_on_circle[1]-centr.y, mouse_posn_on_circle[0]-centr.x)
 
-            if -1 <= v <= 1:
-                # doing it this way means we need to reintroduce directionality / pos neg
-                theta = math.acos(v)
-                theta = self.introduce_dir(theta, future_v, centr)
+            if self.prev is not None:
+                self.rotate(self.prev - theta)
 
-                self.rotate(theta)
+            self.prev = theta
 
     def left_mouse_release_callback(self):
         """Reset all because mouse is no longer down."""
         self.drag_polygon = None
         self.selected_polygon_vert = None
         self.selected_polygon = None
+        self.prev = None
 
     def check_for_selection(self, mouse_pos):
         """Check if mouse down on poly or poly vertex."""
@@ -209,7 +212,6 @@ class ROIInterface:
 
         Returns
         -------
-        v : current position on the circle of the selected vertex
         future_v : future position on the circle of the selected vertex
 
 
@@ -223,10 +225,7 @@ class ROIInterface:
         future_v = (centr.x + curr_v[0] / curr_mag_v * radius,
                     centr.y + curr_v[1] / curr_mag_v * radius)
 
-        v = (2 * (radius**2) - math.dist(future_v,
-                                         cursor_posn) ** 2) / (2*radius*radius)
-
-        return v, future_v
+        return future_v
 
     def introduce_dir(self, theta: int, future_v: tuple[int, int], centr: tuple[int, int]) -> int:
         """

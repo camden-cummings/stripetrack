@@ -12,21 +12,21 @@ from roiinterface import ROIInterface
 from lineinterface import LineInterface
 from roi_generation import generate_rois
 
+
 class StateManager:
     """Makes sure in correct state when necessary."""
 
-    def __init__(self, frame_width, frame_height, window, shift=(0, 0)):
+    def __init__(self, window, frame_width, frame_height, shift=(0, 0)):
         self.inactive = True
         self.current_roi = None
         self.ROI_mode_selected = True
         self.ctrl_has_been_pressed = False
-
+        
         self.frame_height = frame_height
         self.frame_width = frame_width
-        self.roi_interface = ROIInterface(
-            frame_height, frame_width, window, shift)
-        self.line_interface = LineInterface(
-            frame_height, frame_width, window, shift)
+
+        self.roi_interface = ROIInterface(window, frame_width, frame_height, shift)
+        self.line_interface = LineInterface(window, frame_width, frame_height, shift)
 
         self.shift = shift
 
@@ -82,7 +82,8 @@ class StateManager:
 
     def generate_rois_callback(self):
         """Creates list of ROIs based on lines."""
-        shortened_contours = generate_rois(self.line_interface.lines, self.frame_height, self.frame_width, self.shift)
+        shortened_contours = generate_rois(
+            self.line_interface.lines, self.frame_height, self.frame_width, self.shift)
 
         for line in self.line_interface.lines:
             dpg.delete_item(line)
@@ -92,7 +93,7 @@ class StateManager:
         self.roi_interface.rois.extend(self.make_rois(shortened_contours))
         self.ROI_mode_selected = True
 
-    def make_rois(self, shortened_contours:list):
+    def make_rois(self, shortened_contours: list):
         """Make an ROIPoly object for each contour in shortened_contours."""
         rois = []
         for i in range(len(shortened_contours)):
@@ -119,18 +120,17 @@ class StateManager:
     def roi_slider_size_callback_min(self, _, allowed_area):
         """Shows or hides ROIs based on value of allowed area."""
         self.roi_interface.allowed_area_min = allowed_area
-        
+
         for roi in self.roi_interface.rois:
             if roi.area < allowed_area or roi.area > self.roi_interface.allowed_area_max:
                 dpg.hide_item(roi.poly)
             else:
                 dpg.show_item(roi.poly)
 
-
     def roi_slider_size_callback_max(self, _, allowed_area):
         """Shows or hides ROIs based on value of allowed area."""
         self.roi_interface.allowed_area_max = allowed_area
-        
+
         for roi in self.roi_interface.rois:
             if roi.area > allowed_area or roi.area < self.roi_interface.allowed_area_min:
                 dpg.hide_item(roi.poly)
@@ -155,4 +155,3 @@ class StateManager:
             self.roi_interface.delete()
         else:
             self.line_interface.delete()
-            

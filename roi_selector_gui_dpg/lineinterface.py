@@ -11,12 +11,12 @@ import pickle
 
 import dearpygui.dearpygui as dpg
 
-from helpers import get_mouse_pos
+from helpers import get_mouse_pos, convert_to_in_bounds
 
 class LineInterface:
     """Allows manipulating of lines going from top to bottom of given window, and creation of poly based on that."""
 
-    def __init__(self, frame_height, frame_width, window, shift=(0, 0)):
+    def __init__(self, window, frame_width, frame_height, shift=(0, 0)):
         self.lines = []
 
         self.drag_point = None
@@ -49,7 +49,7 @@ class LineInterface:
             vert_line = dpg.draw_line(point_i, point_j, color=(
                 255, 0, 0, 255), parent=self.window)
             self.lines.append(vert_line)
-
+        
     def horizontal_line_callback(self):
         """Makes a horizontal line and adds to current window."""
         for i in range(1, self.hor_lines+1):
@@ -159,7 +159,7 @@ class LineInterface:
 
     def move_line_by_middle(self, mouse_posn: tuple[int, int]):
         """Moves selected line around using middle point as handle."""
-        # TODO adjust s.t. still works when not on opposite walls, fix movement issue where escapes bounds
+
         dx = self.last_mouse_posn[0] - mouse_posn[0]
         dy = self.last_mouse_posn[1] - mouse_posn[1]
 
@@ -167,13 +167,49 @@ class LineInterface:
         p1 = config_dict["p1"]
         p2 = config_dict["p2"]
 
-        # if p1[0] == 0.0 and p1[1] == self.
-        if abs(dx) > abs(dy) and p1[0] != self.shift[0] and p1[0] != self.shift[0]+self.frame_width and p2[0] != self.shift[0] and p2[0] != self.shift[0]+self.frame_width:
-            dpg.configure_item(self.middle_drag_line, p1=[
-                               p1[0]-dx, p1[1]], p2=[p2[0]-dx, p2[1]])
-        elif abs(dy) > abs(dx) and p1[1] != self.shift[1] and p1[1] != self.shift[1]+self.frame_height and p2[1] != self.shift[1] and p2[1] != self.shift[1]+self.frame_height:
-            dpg.configure_item(self.middle_drag_line, p1=[
-                               p1[0], p1[1]-dy], p2=[p2[0], p2[1]-dy])
+        print(abs(dx), abs(dy))
+
+        #if self.shift[0]+self.frame_width in [p1[0], p2[0]] and self.shift[1]+self.frame_height in [p1[1], p2[1]]:
+        #    print("1")
+            
+        if (p1[0] == self.shift[0]+self.frame_width and p2[1] == self.shift[1]+self.frame_height):
+            print("2")
+            
+            scale = (dx+dy)/2
+            p1 = convert_to_in_bounds([p1[0], p1[1]-scale], self.frame_width, self.frame_height, self.shift)
+            p2 = convert_to_in_bounds([p2[0]-scale, p2[1]], self.frame_width, self.frame_height, self.shift)
+
+            dpg.configure_item(self.middle_drag_line, p1=p1, p2=p2)
+        elif (p2[0] == self.shift[0]+self.frame_width and p1[1] == self.shift[1]+self.frame_height):    
+            scale = (dx+dy)/2
+            
+            p1 = convert_to_in_bounds([p1[0]-scale, p1[1]], self.frame_width, self.frame_height, self.shift)
+            p2 = convert_to_in_bounds([p2[0], p2[1]-scale], self.frame_width, self.frame_height, self.shift)
+
+            dpg.configure_item(self.middle_drag_line, p1=p1, p2=p2)
+            
+        elif (p1[0] == self.shift[0] and p2[1] == self.shift[1]+self.frame_height) or (p2[0] == self.shift[0] and p1[1] == self.shift[1]+self.frame_height):
+            pass
+        elif (p1[0] == self.shift[0]+self.frame_width and p2[1] == self.shift[1]) or (p2[0] == self.shift[0]+self.frame_width and p1[1] == self.shift[1]):
+            pass
+        elif (p1[0] == self.shift[0] and p2[1] == self.shift[1]) or (p2[0] == self.shift[0] and p1[1] == self.shift[1]):
+            pass
+        
+        #vertical
+        elif abs(dx) > abs(dy) and self.shift[0] not in [p1[0], p2[0]] and self.shift[0]+self.frame_width not in [p1[0], p2[0]]:
+            p1 = convert_to_in_bounds([p1[0]-dx, p1[1]], self.frame_width, self.frame_height, self.shift)
+            p2 = convert_to_in_bounds([p2[0]-dx, p2[1]], self.frame_width, self.frame_height, self.shift)
+
+            dpg.configure_item(self.middle_drag_line, p1=p1, p2=p2)
+
+        # horizontal
+        elif abs(dy) > abs(dx) and self.shift[1] not in [p1[1], p2[1]] and self.shift[1]+self.frame_height not in [p1[1], p2[1]]:
+            p1 = convert_to_in_bounds([p1[0], p1[1]-dy], self.frame_width, self.frame_height, self.shift)
+            p2 = convert_to_in_bounds([p2[0], p2[1]-dy], self.frame_width, self.frame_height, self.shift)
+
+            dpg.configure_item(self.middle_drag_line, p1=p1, p2=p2)
+
+        print(p1, p2)
 
         self.last_mouse_posn = mouse_posn
 
