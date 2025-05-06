@@ -112,10 +112,11 @@ class GUIHelpers(GUI):
         with dpg.theme() as canvas_theme, dpg.theme_component():
             dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 0, 0)
             
+            
+        #TODO button to choose folder
         right_shift = self.frame_width+10
         std_shift = 8
         
-#        with dpg.window(label="Video player", pos=(0,0), width = self.FRAME_WIDTH, height = self.FRAME_HEIGHT+150) as window:    
         with dpg.tab_bar(label="Select", callback=self.tab_callback, parent=window):
             with dpg.tab(label='ROI Selection'):
                 state_manager = StateManager(window, self.frame_width, self.frame_height, shift=(0,23))
