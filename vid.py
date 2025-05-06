@@ -17,93 +17,18 @@ from AcquireAndDisplayClass import get_image
 from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_device_serial_number
 from gui_helpers import GUIHelpers
 from tracker.helpers.centroid_manip import find_centroid_of_contour, check_masked_image, generate_row_col
-from skimage.metrics import structural_similarity
+#from skimage.metrics import structural_similarity
+from speedy_str_sim import correlate1d, run_math #structural_similarity
 
 global continue_recording
 global run_once
 run_once = True
 DESIRED_MODE_FRAMES = 50
    
-def find_centroids(comp_img, curr_img_gray, frame_count, time, min_area, max_area, shape_of_rows, cell_contours, thresh, mask):
-    # Compute SSIM between the two images
-    (score, diff) = structural_similarity(comp_img, curr_img_gray, full=True)
+weights = [0.00102838, 0.00759876, 0.03600077, 0.10936069, 0.21300554, 0.26601172,
+ 0.21300554, 0.10936069, 0.03600077, 0.00759876, 0.00102838]
 
-    diff = (diff * 255).astype("uint8")
-    diff_box = cv2.merge([diff, diff, diff])
-
-    thresh = cv2.threshold(diff, thresh, 255, cv2.THRESH_BINARY)[1]
-    contours = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    contours = contours[0] if len(contours) == 2 else contours[1]
-
-#    cv2.drawContours(diff, contours, -1, (0,255,0), 1)
-
-    contours = [c for c in contours if min_area < cv2.contourArea(c) < max_area]
-
-    all_centr_in_frame = []
-    
-    """
-    for row, col in generate_row_col(shape_of_rows):
-        cell_count = row * shape_of_rows[row] + col
-
-        #darkest_pixel_val = 255 
-        posns = []
-        for c in contours:
-            x, y, w, h = cv2.boundingRect(c)
-
-            point_x, point_y = (int(x + w / 2), int(y + h / 2)) #not exact as find_centroid_of_contour, but faster
-
-            in_polygon = cv2.pointPolygonTest(cell_contours[cell_count], (point_x, point_y), False)
-
-            if in_polygon >= 0:
-                R, G, B, _ = np.array(cv2.mean(diff_box[y:y + h, x:x + w])).astype(np.uint8)
-                gray_avg = 0.299 * R + 0.587 * G + 0.114 * B
-
-                posns.append(((point_x, point_y), gray_avg))
-
-                #if gray_avg < darkest_pixel_val:
-                #    darkest_pixel_val = gray_avg
-
-        ten_darkest_centroids = sorted(posns, key=lambda posn: posn[1])[:10]
-
-        if len(ten_darkest_centroids) > 0:
-            all_centr_in_frame.append([frame_count, row, col, ten_darkest_centroids[0][0][0], ten_darkest_centroids[0][0][1]])
-        #for c in ten_darkest_centroids:
-        #    all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
-    """
-    
-    
-
-    #darkest_pixel_val = 255 
-    posns = [[[] for j in range(shape_of_rows[i])] for i in range(len(shape_of_rows))]
-    for c in contours:
-        x, y, w, h = cv2.boundingRect(c)
-
-        point_x, point_y = (int(x + w / 2), int(y + h / 2)) #not as exact as find_centroid_of_contour, but faster
-    
-        if not check_masked_image((point_x, point_y), mask):
-            for row, col in generate_row_col(shape_of_rows):
-                cell_count = row * shape_of_rows[row] + col
-        
-                in_polygon = cv2.pointPolygonTest(cell_contours[cell_count], (point_x, point_y), False)
-        
-                if in_polygon >= 0:
-                    R, G, B, _ = np.array(cv2.mean(diff_box[y:y + h, x:x + w])).astype(np.uint8)
-                    gray_avg = 0.299 * R + 0.587 * G + 0.114 * B
-        
-                    posns[row][col].append(((point_x, point_y), gray_avg))
-                    
-                    break
-                    #if gray_avg < darkest_pixel_val:
-                     #   darkest_pixel_val = gray_avg
-
-    for row, col in generate_row_col(shape_of_rows):
-        ten_darkest_centroids = sorted(posns[row][col], key=lambda posn: posn[1])[:10]
-        if len(ten_darkest_centroids) > 0:
-            all_centr_in_frame.append([time, frame_count, row, col, ten_darkest_centroids[0][0][0], ten_darkest_centroids[0][0][1]])
-            #for c in ten_darkest_centroids:
-            #    all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
-        
-    return all_centr_in_frame, contours
+np_weights = np.asarray(weights)
     
 FRAMES_TO_SAVE_AFTER = 100
 pre_output_filepath = 'pre-processed.csv'
@@ -143,7 +68,7 @@ class RunCV:
             self.gui.rt_tracker.standard_image_noise = self.gui.rt_tracker.CV_image_noise_light_background(self.mode_noblur_img)
             dpg.configure_item(self.gui.status, default_value="Status: Ready")
         
-    def run_CV(self, frame_counter, time):
+    def run_CV(self, frame_counter, time, ux, uy, uxx, uyy, uxy):
         if self.mask is not None:
             match self.gui.contour_definer.cv_method:
                 case "Structural Similarity":  
@@ -156,8 +81,8 @@ class RunCV:
                     masked_curr_img = cv2.bitwise_and(
                         self.curr_img, self.curr_img, mask=self.mask)
 
-                    all_centr_in_frame, contours = find_centroids(self.masked_mode_noblur_img, masked_curr_img, frame_counter, time, self.gui.contour_definer.centroid_size, 500000,
-                                                      self.gui.rt_tracker.shape_of_rows, self.gui.rt_tracker.cell_contours, self.gui.contour_definer.thresh, self.gui.rt_tracker.mask)
+                    all_centr_in_frame, contours = self.find_centroids(masked_curr_img, frame_counter, time,
+                                                      ux, uy, uxx, uyy, uxy)
                     
                     self.detected_centroids.extend(all_centr_in_frame)
                     
@@ -212,6 +137,108 @@ class RunCV:
                     else:
                         cv2.drawContours(self.curr_img_data, sharpened_contours, -1, (255, 0, 0), 1)  
         
+        
+    def find_centroids(self, curr_img_gray, frame_count, time, ux, uy, uxx, uyy, uxy):
+        # Compute SSIM between the two images
+        ndim = self.masked_mode_noblur_img.ndim
+    
+        # ndimage filters need floating point data
+        curr_img_gray = curr_img_gray.astype(np.float64, copy=False)
+    
+        sigma = 1.5
+        truncate = 3.5
+        r = int(truncate * sigma + 0.5)  # radius as in ndimage
+        win_size = 2 * r + 1
+        NP = win_size**ndim
+        cov_norm = NP / (NP - 1)  # sample covariance
+            
+        correlate1d(curr_img_gray, weights, ux)
+        correlate1d(self.masked_mode_noblur_img, weights, uy)
+    
+        correlate1d(curr_img_gray * curr_img_gray, weights, uxx)
+        correlate1d(self.masked_mode_noblur_img * self.masked_mode_noblur_img, weights, uyy)
+        correlate1d(curr_img_gray * self.masked_mode_noblur_img, weights, uxy)
+    
+        diff = run_math(cov_norm, 255, ux, uy, uxx, uyy, uxy)
+    
+        diff = (diff * 255).astype("uint8")
+        diff_box = cv2.merge([diff, diff, diff])
+        
+        thresh_img = cv2.threshold(diff, self.gui.contour_definer.thresh, 255, cv2.THRESH_BINARY)[1]
+        contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        contours = contours[0] if len(contours) == 2 else contours[1]
+    
+    #    cv2.drawContours(diff, contours, -1, (0,255,0), 1)
+        contours = [c for c in contours if self.gui.contour_definer.centroid_size < cv2.contourArea(c) < 500000]
+    
+        all_centr_in_frame = []
+        
+        """
+        for row, col in generate_row_col(shape_of_rows):
+            cell_count = row * shape_of_rows[row] + col
+    
+            #darkest_pixel_val = 255 
+            posns = []
+            for c in contours:
+                x, y, w, h = cv2.boundingRect(c)
+    
+                point_x, point_y = (int(x + w / 2), int(y + h / 2)) #not exact as find_centroid_of_contour, but faster
+    
+                in_polygon = cv2.pointPolygonTest(cell_contours[cell_count], (point_x, point_y), False)
+    
+                if in_polygon >= 0:
+                    R, G, B, _ = np.array(cv2.mean(diff_box[y:y + h, x:x + w])).astype(np.uint8)
+                    gray_avg = 0.299 * R + 0.587 * G + 0.114 * B
+    
+                    posns.append(((point_x, point_y), gray_avg))
+    
+                    #if gray_avg < darkest_pixel_val:
+                    #    darkest_pixel_val = gray_avg
+    
+            ten_darkest_centroids = sorted(posns, key=lambda posn: posn[1])[:10]
+    
+            if len(ten_darkest_centroids) > 0:
+                all_centr_in_frame.append([frame_count, row, col, ten_darkest_centroids[0][0][0], ten_darkest_centroids[0][0][1]])
+            #for c in ten_darkest_centroids:
+            #    all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
+        """
+        
+        
+        
+        #darkest_pixel_val = 255 
+        posns = [[[] for j in range(self.gui.rt_tracker.shape_of_rows[i])] for i in range(len(self.gui.rt_tracker.shape_of_rows))]
+        
+        for c in contours:
+            x, y, w, h = cv2.boundingRect(c)
+    
+            point_x, point_y = (int(x + w / 2), int(y + h / 2)) #not as exact as find_centroid_of_contour, but faster
+        
+            if not check_masked_image((point_x, point_y), self.gui.rt_tracker.mask):
+                for row, col in generate_row_col(self.gui.rt_tracker.shape_of_rows):
+                    cell_count = row * self.gui.rt_tracker.shape_of_rows[row] + col
+            
+                    in_polygon = cv2.pointPolygonTest(self.gui.rt_tracker.cell_contours[cell_count], (point_x, point_y), False)
+            
+                    if in_polygon >= 0:
+                        R, G, B, _ = np.array(cv2.mean(diff_box[y:y + h, x:x + w])).astype(np.uint8)
+                        gray_avg = 0.299 * R + 0.587 * G + 0.114 * B
+                        
+                        posns[row][col].append(((point_x, point_y), gray_avg))
+                        
+                        break
+                        #if gray_avg < darkest_pixel_val:
+                         #   darkest_pixel_val = gray_avg
+    
+        for row, col in generate_row_col(self.gui.rt_tracker.shape_of_rows):
+            ten_darkest_centroids = sorted(posns[row][col], key=lambda posn: posn[1])[:10]
+            if len(ten_darkest_centroids) > 0:
+                all_centr_in_frame.append([time, frame_count, row, col, ten_darkest_centroids[0][0][0], ten_darkest_centroids[0][0][1]])
+                
+                
+                #for c in ten_darkest_centroids:
+                #    all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
+            
+        return all_centr_in_frame, contours
     
 def process_command_string(cmd_string: pd.DataFrame) -> [list[str], str, int]:
     """Converts a command into separate pieces."""
@@ -244,7 +271,7 @@ def video():
         cam.BeginAcquisition()
 
         node_fps = PySpin.CFloatPtr(nodemap.GetNode("AcquisitionFrameRate"))
-        node_fps.SetValue(100.0)
+        node_fps.SetValue(30.0)
 
         print('Acquiring images...')
         
