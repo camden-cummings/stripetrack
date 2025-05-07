@@ -2,8 +2,7 @@ import dearpygui.dearpygui as dpg
 import cv2
 import numpy as np
 
-from gui import GUI
-
+from video_gui import VideoGUI
 from pathlib import Path
 
 import os
@@ -27,8 +26,8 @@ def find_all_videos_for_tracking(path=None, ext="avi"):
 
     return files_to_read
 
-all_files = find_all_videos_for_tracking(fp, ext="mp4")
-#all_files = ["/home/chamomile/Thyme-lab/data/vids/brandon-data/brandon_y_mazes/4-3-25/box1/fc2_save_2025-04-03-132533-0000.mp4"]
+#all_files = find_all_videos_for_tracking(fp, ext="mp4")
+all_files = ["/home/chamomile/Thyme-lab/data/vids/smart-dumb-run-fc2_save_2025-02-06-151144-0000.mp4"]
 
 for filename in all_files:    
     dpg.create_context()
@@ -54,7 +53,7 @@ for filename in all_files:
     curr_name = str(path.stem)
 
     #dpg.add_button(label="Choose Video/Image", callback=lambda: dpg.show_item("open_file"), pos=[1700, 0], parent = window)
-    m = GUI(filename, window, vidcap, frame_width, frame_height)
+    m = VideoGUI(window, frame_width, frame_height, filename)
     
     m.start(window)
         
