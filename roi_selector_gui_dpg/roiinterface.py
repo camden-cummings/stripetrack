@@ -151,7 +151,7 @@ class ROIInterface:
         dpg.configure_item(self.selected_polygon.poly,
                            points=self.selected_polygon.lines)
 
-    def convert_rois_to_lines(self, rois):
+    def convert_rois_to_np_array(self, rois):
         """Converts all ROIPolys to numpy arrays."""
         lines = []
         for roi in rois:
@@ -164,7 +164,7 @@ class ROIInterface:
             lines.append(poly)
         return lines
 
-    def convert_lines_to_rois(self, lines):
+    def convert_np_array_to_rois(self, lines):
         """Converts numpy arrays to ROIPolys."""
         new_rois = []
         for line in lines:
@@ -188,7 +188,7 @@ class ROIInterface:
                 if self.allowed_area_max > roi.area > self.allowed_area_min:
                     allowed_rois.append(roi)
 
-            lines = self.convert_rois_to_lines(allowed_rois)
+            lines = self.convert_rois_to_np_array(allowed_rois)
             pickle.dump(lines, filename)
 
     def load_rois_callback(self, _, app_data: dict):
@@ -196,7 +196,7 @@ class ROIInterface:
         with open(app_data["file_path_name"], 'rb') as filename:
             lines = pickle.load(filename)
 
-        self.convert_lines_to_rois(lines)
+        self.convert_np_array_to_rois(lines)
 
     def find_future_posn(self, cursor_posn: tuple[int, int], centr: tuple[int, int]) \
             -> tuple[tuple[int, int], tuple[int, int]]:
