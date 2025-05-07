@@ -19,14 +19,15 @@ class GUIHelpers(GUI):
     """"""
 
     def __init__(self, window, frame_width, frame_height):
-        super().__init__(window, frame_width, frame_height)
-        #self.frame_width = frame_width
-        #self.frame_height = frame_height
-
-        #self.roi, self.line, self.roi_and_line_selection, self.post_line, self.state_manager, self.status = self.setup_elements(
-        #    window)
-
         self.contour_definer = ContourDefiner()
+
+        #super().__init__(window)
+        self.frame_width = frame_width
+        self.frame_height = frame_height
+
+        self.roi, self.line, self.roi_and_line_selection, self.post_line, self.state_manager, self.status = self.setup_elements(
+            window)
+
 
         # min and max allowed centroid area to be considered a potential fish
         self.min_area = 40
@@ -113,7 +114,7 @@ class GUIHelpers(GUI):
 
                         dpg.hide_item(line)
 
-                    post_line = self.setup_post_line_buttons(shift, 0, state_manager, curr_dir, curr_name)
+                    post_line = self.setup_post_line_buttons(shift, 0, state_manager, curr_dir, curr_name, self.frame_width*self.frame_height)
 
                     dpg.hide_item(post_line)
 

@@ -11,9 +11,10 @@ class GUI:
     """Sets and manages GUI elements - set up for line interface and ROI interface. """
 
     def __init__(self, window, frame_width=500, frame_height=500): #TODO investigate if this works for basic ROI
-        self.roi, self.line, self.roi_and_line_selection, self.post_line, self.state_manager = self.setup_elements(window)
         self.frame_width = frame_width
         self.frame_height = frame_height
+        #self.roi, self.line, self.roi_and_line_selection, self.post_line, self.state_manager = self.setup_elements(window)
+
 
     def change_selection_mode(self, _, data):
         """Changes set of buttons based on mode selected."""
@@ -108,7 +109,7 @@ class GUI:
 
         return line
 
-    def setup_post_line_buttons(self, shift, down_shift, state_manager, curr_dir, curr_name):
+    def setup_post_line_buttons(self, shift, down_shift, state_manager, curr_dir, curr_name, max_roi_area):
         """Post Line ROI Generation Buttons."""
         with dpg.group(label="post line buttons", pos=[shift, down_shift]) as post_line:
             with dpg.file_dialog(directory_selector=False, show=False, callback=state_manager.roi_interface.save_rois_callback, id="roi_post_save_file", width=700, height=400, default_path=curr_dir, default_filename=curr_name):
@@ -127,7 +128,7 @@ class GUI:
                 pos=[shift+10, down_shift+50],
                 vertical=True,
                 min_value=0.0,
-                max_value=self.frame_width*self.frame_height,
+                max_value=max_roi_area,
                 default_value=0.0,
                 callback=state_manager.roi_slider_size_callback_min
             )
@@ -138,8 +139,8 @@ class GUI:
                 pos=[shift+70, down_shift+50],
                 vertical=True,
                 min_value=0.0,
-                max_value=self.frame_width*self.frame_height,
-                default_value=self.frame_width*self.frame_height,
+                max_value=max_roi_area, 
+                default_value=max_roi_area,
                 callback=state_manager.roi_slider_size_callback_max
             )
 

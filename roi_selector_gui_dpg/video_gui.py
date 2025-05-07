@@ -1,13 +1,13 @@
-from gui import GUI
 from pathlib import Path
 
 import dearpygui.dearpygui as dpg
 import numpy as np
+import cv2
 
 from helpers import update_frame_shape, get_shape
 from statemanager import StateManager
+from gui import GUI
 
-import cv2
 
 class VideoGUI(GUI):
     def __init__(self, window, frame_width, frame_height, filename: str):
@@ -100,7 +100,7 @@ class VideoGUI(GUI):
                 line = self.setup_line_buttons(shift, 50, state_manager)
                 dpg.hide_item(line)
 
-            post_line = self.setup_post_line_buttons(shift, 0, state_manager, curr_dir, curr_name)
+            post_line = self.setup_post_line_buttons(shift, 0, state_manager, curr_dir, curr_name, self.frame_width*self.frame_height)
             dpg.hide_item(post_line)
 
         return roi, line, roi_and_line_selection, post_line, state_manager
