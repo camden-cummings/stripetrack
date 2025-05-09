@@ -35,8 +35,8 @@ class GUIHelpers(GUI):
         # min length of any contour to be consider a potential fish
         self.length_req = 40
 
-        self.rt_tracker = RealTimeTracker([], [1], self.min_area, self.max_area, self.length_req,
-                                          np.zeros((frame_height, frame_width)))
+        #self.rt_tracker = RealTimeTracker([], [1], self.min_area, self.max_area, self.length_req,
+        #                                  np.zeros((frame_height, frame_width)))
 
         self.show_only_inside_contours = False
         self.contour_overlay = False
@@ -54,8 +54,8 @@ class GUIHelpers(GUI):
                                                                                        self.frame_width,
                                                                                        self.frame_height)
 
-        self.rt_tracker = RealTimeTracker(cell_contours, shape_of_rows, self.min_area, self.max_area, self.length_req,
-                                          contour_mask)
+        #self.rt_tracker = RealTimeTracker(cell_contours, shape_of_rows, self.min_area, self.max_area, self.length_req,
+        #                                  contour_mask)
 
         self.contours_updated = True
 
@@ -72,8 +72,8 @@ class GUIHelpers(GUI):
                     self.state_manager.roi_interface.convert_rois_to_np_array(self.state_manager.roi_interface.rois),
                     self.frame_width, self.frame_height)
 
-                self.rt_tracker = RealTimeTracker(cell_contours, shape_of_rows, self.min_area, self.max_area,
-                                                  self.length_req, contour_mask)
+                #self.rt_tracker = RealTimeTracker(cell_contours, shape_of_rows, self.min_area, self.max_area,
+                #                                  self.length_req, contour_mask)
 
     def only_selected_contours(self, _, show_only_inside_contours):
         self.show_only_inside_contours = show_only_inside_contours
