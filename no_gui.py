@@ -295,53 +295,53 @@ class PoolRun:
 
         while counter < num_of_instructions and not done.is_set():
             try:
-                if start_recording.is_set():
-                    if first_time:  # setup all necessary pieces
-                        at_time, command_string, type_of_video = process_command_string(
-                            schedule_times.iloc[counter])
-                        logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
-                        if type_of_video == 0:
-                            duration = 0
-                        elif type_of_video == 1:
-                            duration = 1
-                        elif type_of_video == 2:
-                            duration = 1800
+            #if start_recording.is_set():
+                if first_time:  # setup all necessary pieces
+                    at_time, command_string, type_of_video = process_command_string(
+                        schedule_times.iloc[counter])
+                    logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
+                    if type_of_video == 0:
+                        duration = 0
+                    elif type_of_video == 1:
+                        duration = 1
+                    else: # long video
+                        duration = 1800
 
-                        j = [3600, 60, 1]
-                        curr_time = timer.formatted_time(timer.now())
-                        diff = sum([at_time[i] * j[i] for i in range(len(at_time))]) - sum(
-                            [curr_time[i] * j[i] for i in range(len(at_time))])
+                    j = [3600, 60, 1]
+                    curr_time = timer.formatted_time(timer.now())
+                    diff = sum([at_time[i] * j[i] for i in range(len(at_time))]) - sum(
+                        [curr_time[i] * j[i] for i in range(len(at_time))])
 
-                        if abs(diff) > 120:
-                            logger.info("sending val to fps")
-                            fps_commands.send(val)
+                    if abs(diff) > 120:
+                        logger.info("sending val to fps")
+                        fps_commands.send(val)
 
-                        recording_commands.send([duration, at_time, type_of_video, counter])
+                    recording_commands.send([duration, at_time, type_of_video, counter])
 
-                        first_time = False
+                    first_time = False
 
-                    if (timer.formatted_time(timer.now()) == at_time and (
-                            type_of_video == 1 or type_of_video == 0)) or (
-                            timer.formatted_time(timer.now()) >= at_time and type_of_video == 2):
-                        if end_time == np.inf:
-                            if duration != 0:
-                                if type_of_video == 1:
-                                    logger.info("sending 285.0")
-                                    fps_commands.send(285.0)
-                                else:
-                                    logger.info("sending 21.0")
-                                    fps_commands.send(21.0)
+                if (timer.formatted_time(timer.now()) == at_time and (
+                        type_of_video == 1 or type_of_video == 0)) or (
+                        timer.formatted_time(timer.now()) >= at_time and type_of_video == 2):
+                    if end_time == np.inf:
+                        if duration != 0:
+                            if type_of_video == 1:
+                                logger.info("sending 285.0")
+                                fps_commands.send(285.0)
+                            else:
+                                logger.info("sending 21.0")
+                                fps_commands.send(21.0)
 
-                            start_time = int(timer.now())
-                            end_time = start_time + duration
-                            recording_commands.send(["start_now", start_time, "end_now", end_time])
-                            dev.write(bytes(command_string, 'utf-8'))
+                        start_time = int(timer.now())
+                        end_time = start_time + duration
+                        recording_commands.send(["start_now", start_time, "end_now", end_time])
+                        dev.write(bytes(command_string, 'utf-8'))
 
-                    if (timer.now() >= end_time):
-                        # recording_commands.send(["stop"])
-                        counter += 1
-                        first_time = True
-                        end_time = np.inf
+                if timer.now() >= end_time:
+                    # recording_commands.send(["stop"])
+                    counter += 1
+                    first_time = True
+                    end_time = np.inf
 
             except Exception as e:
                 # print(e)
