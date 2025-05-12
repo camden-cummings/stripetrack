@@ -1,4 +1,4 @@
-from multiprocessing import Pool, Process
+from multiprocessing import Process
 import multiprocessing
 import cProfile, pstats, io
 from pstats import SortKey
@@ -10,13 +10,13 @@ import dearpygui.dearpygui as dpg
 
 from AcquireAndDisplayClass import get_image
 from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode
-from gui_helpers import GUIHelpers
+#from gui_helpers import GUIHelpers
 
 from precise_time import PreciseTime
-from tracker.str_sim_run import shape_of_rows
+#from tracker.str_sim_run import shape_of_rows
 
 from vid import RunCV, process_command_string
-import queue
+#import queue
 
 import gc
 
@@ -25,36 +25,38 @@ import pandas as pd
 import keyboard
 import serial
 
+import pickle
+
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-6-25\\"
 
-import logging
+#import logging
 
 # create logger
-mem_logger = logging.getLogger('memory_profile_log')
-mem_logger.setLevel(logging.DEBUG)
+#mem_logger = logging.getLogger('memory_profile_log')
+#mem_logger.setLevel(logging.DEBUG)
 
 # create file handler which logs even debug messages
-fh = logging.FileHandler("memory_profile.log")
-fh.setLevel(logging.DEBUG)
+#fh = logging.FileHandler("memory_profile.log")
+#fh.setLevel(logging.DEBUG)
 
 # create formatter
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-fh.setFormatter(formatter)
+#formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+#fh.setFormatter(formatter)
 
 # add the handlers to the logger
-mem_logger.addHandler(fh)
+#mem_logger.addHandler(fh)
 
-from memory_profiler import LogFile
-import sys
+#from memory_profiler import LogFile
+#import sys
 
-sys.stdout = LogFile('memory_profile_log', reportIncrementFlag=False)
+#sys.stdout = LogFile('memory_profile_log', reportIncrementFlag=False)
 
 # from memory_profiler import profile
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
+#logger = logging.getLogger(__name__)
+#logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
 
-val = 20.0
+val = 30.0
 
 
 class PoolRun:
@@ -100,7 +102,7 @@ class PoolRun:
 
                 image = get_image(cam)
 
-                if node_fps.GetValue() == 21.0 or node_fps.GetValue() == 285.0:
+                if node_fps.GetValue() == val or node_fps.GetValue() == 285.0:
                     time = timer.now()
                     recording_queue.put([image, time])
 
@@ -125,9 +127,9 @@ class PoolRun:
             cam.DeInit()
 
         except Exception as ex:
-            #    print(ex)
-            logger.error(f'Error: {ex}')
-            logger.error(gc.get_stats())
+            print(ex)
+            # logger.error(f'Error: {ex}')
+            # logger.error(gc.get_stats())
 
         # Release reference to camera
         # NOTE: Unlike the C++ examples, we cannot rely on pointer objects being automatically
@@ -173,7 +175,7 @@ class PoolRun:
                             else:
                                 result = cv2.VideoWriter(f'{fn_start}{vid_name}-long.avi',
                                                          cv2.VideoWriter_fourcc(*'MJPG'),
-                                                         30, (self.FRAME_WIDTH, self.FRAME_HEIGHT), False)
+                                                         val, (self.FRAME_WIDTH, self.FRAME_HEIGHT), False)
 
                 if start_time != -1 and start_time < time < end_time:
                     result.write(image)
@@ -181,9 +183,9 @@ class PoolRun:
             #                    logger.info(str(counter))
 
             except Exception as e:
-                # print(e)
-                logger.error(f"video recorder failed at: {e}")
-                logger.error(gc.get_stats())
+                print(e)
+                #logger.error(f"video recorder failed at: {e}")
+                #logger.error(gc.get_stats())
 
     #  @profile
 
@@ -193,15 +195,16 @@ class PoolRun:
         #window = dpg.add_window(label="Video player", pos=(50, 50), width=self.FRAME_WIDTH, height=self.FRAME_HEIGHT)
         #gui = GUIHelpers(window, self.FRAME_WIDTH, self.FRAME_HEIGHT)
         #gui.start()
-        recording = False
+        #recording = False
         timer = PreciseTime()
 
         #dpg.set_primary_window(window, True)
         #dpg.create_viewport(width=int(self.FRAME_WIDTH*1.5), height=self.FRAME_HEIGHT+20, title="ROI Selector")
         #dpg.setup_dearpygui()
         #dpg.show_viewport()
-
-        cell_contours = []
+        with open(f"{fn_start}\\zebrafish-tracker-full-restart.cells", 'rb') as filename:
+            cell_contours = pickle.load(filename)
+        
         shape_of_rows = []
         r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', cell_contours, shape_of_rows)
         frame_counter = 0
@@ -211,27 +214,53 @@ class PoolRun:
         uxx = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
         uyy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
         uxy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
-
+        
+        setup = False
+        
         while not done.is_set():
             try:
                 print(img_queue.qsize())
 
-                pr = cProfile.Profile()
-                pr.enable()
-
                 image = img_queue.get()
                 image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-
+                #cv2.imshow('im', image_data)
+                #f cv2.waitKey(1) == 1:
+                #    break
                 r.curr_img = image
                 r.curr_img_data = image_data
 
                 if r.mode_noblur_img is None:
                     r.find_mode(frame_counter)
+                elif not setup:
+                    contour_mask = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH, 3))
+                    for c in cell_contours:
+                        non_int = np.array(c)
+                        contour_mask = cv2.drawContours(contour_mask, [non_int],
+                                                        -1, (255, 255, 255), thickness=cv2.FILLED)
+                        
+                    r.mask = cv2.cvtColor(
+                        np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
+
+                    masked_mode_noblur_img = cv2.bitwise_and(
+                        r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
+                    masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
+                    r.masked_mode_noblur_img = masked_mode_noblur_img
+                    
+                    setup = True
                 else:
                     time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
+                    pr = cProfile.Profile()
+                    pr.enable()
+
                     r.run_CV(frame_counter, time_, ux, uy, uxx, uyy, uxy)
 
-
+                    pr.disable()
+                    s = io.StringIO()
+                    sortby = SortKey.CUMULATIVE
+                    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                    ps.print_stats()
+                    print(s.getvalue())
+                    
                 """
                 elif gui.contour_overlay:
                     if gui.contours_updated:
@@ -267,12 +296,7 @@ class PoolRun:
                     start_recording.set()
                 """
 
-                pr.disable()
-                s = io.StringIO()
-                sortby = SortKey.CUMULATIVE
-                ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-                ps.print_stats()
-                print(s.getvalue())
+
 
             except Exception as e:
                 print(e)
@@ -299,7 +323,8 @@ class PoolRun:
                 if first_time:  # setup all necessary pieces
                     at_time, command_string, type_of_video = process_command_string(
                         schedule_times.iloc[counter])
-                    logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
+                    #logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
+                    print(f"COMMANDS: {at_time} {command_string} {type_of_video}")
                     if type_of_video == 0:
                         duration = 0
                     elif type_of_video == 1:
@@ -313,7 +338,8 @@ class PoolRun:
                         [curr_time[i] * j[i] for i in range(len(at_time))])
 
                     if abs(diff) > 120:
-                        logger.info("sending val to fps")
+                        #logger.info("sending val to fps")
+                        print("sending val to fps")
                         fps_commands.send(val)
 
                     recording_commands.send([duration, at_time, type_of_video, counter])
@@ -326,11 +352,13 @@ class PoolRun:
                     if end_time == np.inf:
                         if duration != 0:
                             if type_of_video == 1:
-                                logger.info("sending 285.0")
+                                #logger.info("sending 285.0")
+                                print("sending 285.0")
                                 fps_commands.send(285.0)
                             else:
-                                logger.info("sending 21.0")
-                                fps_commands.send(21.0)
+                                #logger.info(f"sending {val}")
+                                print(f"sending {val}")
+                                fps_commands.send(val)
 
                         start_time = int(timer.now())
                         end_time = start_time + duration
@@ -345,8 +373,10 @@ class PoolRun:
 
             except Exception as e:
                 # print(e)
-                logger.error(f"timer failed because: {e}")
-                logger.error(gc.get_stats())
+                #logger.error(f"timer failed because: {e}")
+                #logger.error(gc.get_stats())
+                print(f"timer failed because: {e}")
+                print(gc.get_stats())
 
         done.set()
 

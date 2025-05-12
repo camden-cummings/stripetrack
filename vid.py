@@ -51,8 +51,14 @@ class RunCV:
         self.cell_contours = cell_contours
         self.shape_of_rows = shape_of_rows
         
+        sigma = 1.5
+        truncate = 3.5
+        r = int(truncate * sigma + 0.5)  # radius as in ndimage
+        self.win_size = 2 * r + 1
+        
+        
     def find_mode(self, frame_counter):
-        #print('finding mode', len(self.movie_deq), DESIRED_MODE_FRAMES)
+        print('finding mode', len(self.movie_deq), DESIRED_MODE_FRAMES)
         global run_once
 
         if len(self.movie_deq) < DESIRED_MODE_FRAMES and frame_counter % 50 == 0:
@@ -99,14 +105,18 @@ class RunCV:
             sorted_contours = self.sort_contours_by_area(contours, frame_counter, time, diff_box)
             self.detected_centroids.extend(sorted_contours)
 
-            if gui.show_only_inside_contours:
-                for i in sorted_contours:
-                    cv2.circle(self.curr_img_data, (i[4], i[5]), 1, (0, 255, 0), 1)
-            else:
-                for i in contours:
-                    center = find_centroid_of_contour(i)
-                    cv2.circle(self.curr_img_data, center, 1, (0, 255, 0), 1)
-
+            #if gui.show_only_inside_contours:
+            #    for i in sorted_contours:
+            #        cv2.circle(self.curr_img_data, (i[4], i[5]), 1, (0, 255, 0), 1)
+            #else:
+            for i in contours:
+                center = find_centroid_of_contour(i)
+                cv2.circle(self.curr_img_data, center, 1, (0, 255, 0), 1)
+            
+            
+            #cv2.imshow('f', self.curr_img_data)
+        
+            
             if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(self.detected_centroids) > 0:
                 if start_frame == 0:
                     new = pd.DataFrame(np.matrix(self.detected_centroids),
@@ -119,19 +129,11 @@ class RunCV:
                     self.detected_centroids.clear()
         
     def find_centroids(self, curr_img_gray, ux, uy, uxx, uyy, uxy):
-        # Compute SSIM between the two images
         ndim = self.masked_mode_noblur_img.ndim
     
         # ndimage filters need floating point data
         curr_img_gray = curr_img_gray.astype(np.float64, copy=False)
     
-        sigma = 1.5
-        truncate = 3.5
-        r = int(truncate * sigma + 0.5)  # radius as in ndimage
-        win_size = 2 * r + 1
-        NP = win_size**ndim
-        cov_norm = NP / (NP - 1)  # sample covariance
-            
         correlate1d(curr_img_gray, weights, ux)
         correlate1d(self.masked_mode_noblur_img, weights, uy)
     
@@ -139,6 +141,7 @@ class RunCV:
         correlate1d(self.masked_mode_noblur_img * self.masked_mode_noblur_img, weights, uyy)
         correlate1d(curr_img_gray * self.masked_mode_noblur_img, weights, uxy)
     
+        cov_norm = self.win_size**ndim / (self.win_size**ndim - 1)  # sample covariance
         diff = run_math(cov_norm, 255, ux, uy, uxx, uyy, uxy)
     
         diff = (diff * 255).astype("uint8")
