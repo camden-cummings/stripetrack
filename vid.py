@@ -1,7 +1,7 @@
 import os
 from multiprocessing import Pool
-import cProfile, pstats, io
-from pstats import SortKey
+#import cProfile, pstats, io
+#from pstats import SortKey
 
 import PySpin
 import cv2
@@ -56,11 +56,16 @@ class RunCV:
         sigma = 1.5
         truncate = 3.5
         r = int(truncate * sigma + 0.5)  # radius as in ndimage
-        self.win_size = 2 * r + 1
+        win_size = 2 * r + 1
+
+        # ndim will always be 2 because we're always dealing with 2d images 
+        ndim = 2
+        
+        self.cov_norm = win_size**ndim / (win_size**ndim - 1)  # sample covariance
+
         
         
     def find_mode(self, frame_counter):
-        print('finding mode', len(self.movie_deq), DESIRED_MODE_FRAMES)
         global run_once
 
         if len(self.movie_deq) < DESIRED_MODE_FRAMES and frame_counter % 50 == 0:
@@ -102,24 +107,25 @@ class RunCV:
 
             masked_curr_img = cv2.bitwise_and(
                 self.curr_img, self.curr_img, mask=self.mask)
-
-            contours, diff_box = self.find_centroids(masked_curr_img)
-            sorted_contours = self.sort_contours_by_area(contours, frame_counter, time, diff_box)
+            contours, diff = self.find_centroids(masked_curr_img)
+            
+            
+            cv2.drawContours(self.curr_img_data, contours, -1, (0,255,0), 1)
+            sorted_contours = self.sort_contours_by_area(contours, frame_counter, time, diff)
             self.detected_centroids.extend(sorted_contours)
 
             #if gui.show_only_inside_contours:
             #    for i in sorted_contours:
             #        cv2.circle(self.curr_img_data, (i[4], i[5]), 1, (0, 255, 0), 1)
             #else:
-            for i in contours:
-                center = find_centroid_of_contour(i)
-                cv2.circle(self.curr_img_data, center, 1, (0, 255, 0), 1)
+            #for i in contours:
+                #center = find_centroid_of_contour(i)
+                #cv2.circle(self.curr_img_data, center, 1, (0, 255, 0), 1)
             
-            
-            cv2.imshow('f', self.curr_img_data)
-        
+                    
             
             if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(self.detected_centroids) > 0:
+                print("saving")
                 if start_frame == 0:
                     new = pd.DataFrame(np.matrix(self.detected_centroids),
                                        columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
@@ -130,11 +136,10 @@ class RunCV:
                     new.to_csv(self.output_filepath, sep=',', mode='a', index=False, header=False)
                     self.detected_centroids.clear()
         
-    def find_centroids(self, curr_img_gray):
-        ndim = self.masked_mode_noblur_img.ndim
-    
+    def find_centroids(self, curr_img_gray):    
         # ndimage filters need floating point data
         curr_img_gray = curr_img_gray.astype(np.float64, copy=False)
+
         #tester(uy, mode_scipy)
         
         correlate1d(curr_img_gray, weights, self.ux_tmp, 0)
@@ -152,11 +157,18 @@ class RunCV:
         correlate1d(curr_img_gray * self.masked_mode_noblur_img, weights, self.uxy_tmp)
         correlate1d(self.uxy_tmp, weights, self.uxy, 1)#, mode_scipy)
 
-        cov_norm = self.win_size**ndim / (self.win_size**ndim - 1)  # sample covariance
-        diff = run_math(cov_norm, 255, self.ux, self.uy, self.uxx, self.uyy, self.uxy)
-    
+        diff = run_math(self.cov_norm, 255, self.ux, self.uy, self.uxx, self.uyy, self.uxy)
+
+#        _, str_sim_diff = structural_similarity(curr_img_gray, self.masked_mode_noblur_img, full=True)
+        
+        #cv2.imshow('curr in find', curr_img_gray)
         diff = (diff * 255).astype("uint8")
-        diff_box = cv2.merge([diff, diff, diff])
+
+        cv2.imshow('diff', diff)
+        
+
+        #cv2.imshow('masked mode noblur img', self.masked_mode_noblur_img)
+        #cv2.imshow('strsim', str_sim_diff)
         
         #thresh_img = cv2.threshold(diff, self.gui.contour_definer.thresh, 255, cv2.THRESH_BINARY)[1]
 
@@ -197,14 +209,16 @@ class RunCV:
             #for c in ten_darkest_centroids:
             #    all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
         """
-        return contours, diff_box
+        return contours, diff
 
-    def sort_contours_by_area(self, contours, frame_count, time, diff_box):
+    def sort_contours_by_area(self, contours, frame_count, time, diff):
         # darkest_pixel_val = 255
         posns = [[[] for j in range(self.shape_of_rows[i])] for i in
                  range(len(self.shape_of_rows))]
 
         sorted_contours = []
+        
+#        diff_box = cv2.merge([diff, diff, diff])
 
         for c in contours:
             # we want to make sure that each contour we find is in a masked section of the image (i.e. relevant because it's in
@@ -220,13 +234,15 @@ class RunCV:
 
                     in_polygon = cv2.pointPolygonTest(self.cell_contours[cell_count], (point_x, point_y),
                                                       False)
-
+                    #print(in_polygon)
                     if in_polygon >= 0:
-                        # TODO this looks extremely speed-up-able, are we just taking the mean of some numbers that will be the same every run?
-                        R, G, B, _ = np.array(cv2.mean(diff_box[y:y + h, x:x + w])).astype(np.uint8)
-                        gray_avg = 0.299 * R + 0.587 * G + 0.114 * B
+                        #print(diff_box)
+                        #R, G, B, _ = np.array(cv2.mean(diff_box[y:y + h, x:x + w]), np.uint8)
+                        n = cv2.mean(diff[y:y + h, x:x + w])[0]
+                        #gray_avg = 0.299 * R + 0.587 * G + 0.114 * B
+                        #print(R, G, B, n, gray_avg)
 
-                        posns[row][col].append(((point_x, point_y), gray_avg))
+                        posns[row][col].append(((point_x, point_y), n))
 
                         break
                         # if gray_avg < darkest_pixel_val:
@@ -255,7 +271,7 @@ def process_command_string(cmd_string: pd.DataFrame) -> [list[str], str, int]:
     video_type = cmd_string.iloc[2]
 
     return at_time, arduino_command, video_type
-
+"""
 def video():
     # Retrieve singleton reference to system object
     system = PySpin.System.GetInstance()
@@ -404,6 +420,7 @@ def video():
     # Release system instance
     system.ReleaseInstance()
 
+
 if __name__ == '__main__':    
     continue_recording = True
     contour_overlay = False
@@ -420,5 +437,6 @@ if __name__ == '__main__':
     dpg.show_viewport()
     
     video()
+"""
 #video_thread = Thread(target=video)
 #video_thread.start()

@@ -14,12 +14,13 @@ import cv2
 from scipy.ndimage import correlate1d as correlate1d_scipy
 
 #from skimage.metrics import structural_similarity
-from structural_sim import structural_similarity
-from structural_sim_from_scratch import setup, generate_weights, correlate1d, run_math
+from structural_sim_from_scratch import setup, generate_weights, correlate1d, run_math, vid_runner
 #from numba import int64, float64
 from scipy import ndimage as ndi
 from numbers import Integral
 import copy
+
+from numba import int64, float64
 
 def structural_similarity_diff(
         im1,
@@ -111,6 +112,8 @@ def crop(ar, crop_width, copy=False, order='K'):
         cropped = ar[slices]
     return cropped
 
+"""
+#@nb.guvectorize([(float64, int64, float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:])], '(),(),(m,n),(m,n),(m,n),(m,n),(m,n)->(m,n)', nopython=True, target='cuda')
 @nb.njit(parallel=True, fastmath=True)
 def run_math_with_diff(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     K1 = 0.01
@@ -283,6 +286,15 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         k = cv2.waitKey(30) & 0xff
         if k == 27:
             break
+=======
+"""
+
+"""
+img1 = np.zeros((660,992))
+img2 = np.zeros((660,992))
+weights = [0.00102838, 0.00759876, 0.03600077, 0.10936069, 0.21300554, 0.26601172,
+ 0.21300554, 0.10936069, 0.03600077, 0.00759876, 0.00102838]
+>>>>>>> Stashed changes
 
         cont, curr_img = vidcap.read()
 
@@ -297,6 +309,7 @@ def vid_runner(vidcap, mode_img, weights, data_range):
     ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
     ps.print_stats()
     print(s.getvalue())
+"""
 
 if __name__ == '__main__':
     filename = "/home/chamomile/Thyme-lab/data/shortened_vids/6dpf/_2024-02-27-105322-0000-short.avi"
@@ -349,6 +362,7 @@ if __name__ == '__main__':
             weights,
             cov_norm)
 
+<<<<<<< Updated upstream
 #    pr = cProfile.Profile()
 #    pr.enable()
 
@@ -393,6 +407,16 @@ if __name__ == '__main__':
     ps.print_stats()
     print(s.getvalue())
 
+=======
+pr.disable()
+s = io.StringIO()
+sortby = SortKey.CUMULATIVE
+ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+ps.print_stats()
+print(s.getvalue())
+"""
+"""
+>>>>>>> Stashed changes
 pr = cProfile.Profile()
 pr.enable()
 

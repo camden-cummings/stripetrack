@@ -26,6 +26,7 @@ import keyboard
 import serial
 
 import pickle
+from tracker.roi_manip import convert_to_contours
 
 
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-6-25\\"
@@ -62,7 +63,7 @@ val = 30.0
 
 class PoolRun:
     def __init__(self):
-        self.FRAME_HEIGHT, self.FRAME_WIDTH = 660, 992
+        self.FRAME_WIDTH, self.FRAME_HEIGHT = 992, 660
         self.image_data = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT, 3))
 
     # @profile
@@ -203,11 +204,16 @@ class PoolRun:
         #dpg.create_viewport(width=int(self.FRAME_WIDTH*1.5), height=self.FRAME_HEIGHT+20, title="ROI Selector")
         #dpg.setup_dearpygui()
         #dpg.show_viewport()
-        with open(f"{fn_start}\\zebrafish-tracker-full-restart.cells", 'rb') as filename:
-            cell_contours = pickle.load(filename)
-        
-        shape_of_rows = []
+        #with open(f"{fn_start}\\zebrafish-tracker-full-restart.cells", 'rb') as filename:
+        #    cell_contours = pickle.load(filename)
+        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker-full-restart.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
+
         r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', cell_contours, shape_of_rows)
+        
+        # just for testing
+        image = img_queue.get()
+        r.mode_noblur_img=image
+        # --------------------------------------
         frame_counter = 0
 
         setup = False
@@ -218,9 +224,10 @@ class PoolRun:
 
                 image = img_queue.get()
                 image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                cv2.imshow('im', image_data)
+
                 if cv2.waitKey(1) == 1:
                     break
+
                 r.curr_img = image
                 r.curr_img_data = image_data
 
@@ -235,12 +242,11 @@ class PoolRun:
                         
                     r.mask = cv2.cvtColor(
                         np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
-
+                    
                     masked_mode_noblur_img = cv2.bitwise_and(
                         r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
-                    masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
-                    r.masked_mode_noblur_img = masked_mode_noblur_img
-                    
+                    r.masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
+
                     setup = True
                 else:
                     time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
@@ -249,6 +255,8 @@ class PoolRun:
 
                     r.run_CV(frame_counter, time_)
 
+                    #cv2.imshow('im', r.curr_img_data)
+                    
                     pr.disable()
                     s = io.StringIO()
                     sortby = SortKey.CUMULATIVE
@@ -282,7 +290,6 @@ class PoolRun:
                 data = np.asfarray(data, dtype='f')
                 texture_data = np.true_divide(data, 255.0)
 
-                frame_counter += 1
 
                 dpg.set_value("texture_tag", texture_data)
                 dpg.render_dearpygui_frame()
@@ -291,6 +298,7 @@ class PoolRun:
                     start_recording.set()
                 """
 
+                frame_counter += 1
 
 
             except Exception as e:
