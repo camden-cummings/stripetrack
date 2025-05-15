@@ -9,7 +9,7 @@ import dearpygui.dearpygui as dpg
 
 from shapely.geometry import Polygon
 
-from helpers import get_mouse_pos
+from roi_selector_gui_dpg.helpers import get_mouse_pos
 
 
 class RoiPoly:

@@ -11,7 +11,7 @@ import pickle
 
 import dearpygui.dearpygui as dpg
 
-from helpers import get_mouse_pos, convert_to_in_bounds
+from roi_selector_gui_dpg.helpers import get_mouse_pos, convert_to_in_bounds
 
 class LineInterface:
     """Allows manipulating of lines going from top to bottom of given window, and creation of poly based on that."""

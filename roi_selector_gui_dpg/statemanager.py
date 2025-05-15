@@ -7,10 +7,10 @@ Created on Thu Jan 30 14:55:53 2025
 """
 import dearpygui.dearpygui as dpg
 
-from roipoly import RoiPoly
-from roiinterface import ROIInterface
-from lineinterface import LineInterface
-from roi_generation import generate_rois
+from roi_selector_gui_dpg.roipoly import RoiPoly
+from roi_selector_gui_dpg.roiinterface import ROIInterface
+from roi_selector_gui_dpg.lineinterface import LineInterface
+from roi_selector_gui_dpg.roi_generation import generate_rois
 
 
 class StateManager:

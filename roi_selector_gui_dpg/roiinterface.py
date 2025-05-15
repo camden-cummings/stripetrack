@@ -12,8 +12,8 @@ import numpy as np
 import dearpygui.dearpygui as dpg
 from shapely.geometry import Point, Polygon
 
-from roipoly import RoiPoly
-from helpers import get_mouse_pos
+from roi_selector_gui_dpg.roipoly import RoiPoly
+from roi_selector_gui_dpg.helpers import get_mouse_pos
 
 
 class ROIInterface:
