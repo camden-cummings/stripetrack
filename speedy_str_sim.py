@@ -212,8 +212,8 @@ def vid_runner(vidcap, mode_img, weights, data_range):
     NP = win_size ** ndim
     cov_norm = NP / (NP - 1)  # sample covariance
 
-    ux, uy, uxx, uyy, uxy = setup(curr_img, mode_img, weights, 1760,1200)
-    ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = setup(curr_img, mode_img, weights, 1760, 1200)
+    ux, uy, uxx, uyy, uxy = setup(weights, 1760,1200)
+    ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = setup(weights, 1760, 1200)
 
     correlate1d(curr_img, weights, ux, 0)  # , curr_scipy)
     S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)

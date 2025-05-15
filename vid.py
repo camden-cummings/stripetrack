@@ -16,7 +16,7 @@ from AcquireAndDisplayClass import get_image
 from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_device_serial_number
 from gui_helpers import GUIHelpers
 from tracker.helpers.centroid_manip import find_centroid_of_contour, check_masked_image, generate_row_col
-from speedy_str_sim import correlate1d, run_math #structural_similarity
+from structural_sim_from_scratch import correlate1d, run_math, setup as ssim_setup #structural_similarity
 
 global continue_recording
 global run_once
@@ -50,7 +50,9 @@ class RunCV:
         self.movie_deq = []
         self.cell_contours = cell_contours
         self.shape_of_rows = shape_of_rows
-        
+        self.ux, self.uy, self.uxx, self.uyy, self.uxy = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT)
+        self.ux_tmp, self.uy_tmp, self.uxx_tmp, self.uyy_tmp, self.uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT)
+
         sigma = 1.5
         truncate = 3.5
         r = int(truncate * sigma + 0.5)  # radius as in ndimage
@@ -77,7 +79,7 @@ class RunCV:
             #self.gui.rt_tracker.standard_image_noise = self.gui.rt_tracker.CV_image_noise_light_background(self.mode_noblur_img)
             #dpg.configure_item(self.gui.status, default_value="Status: Ready")
         
-    def run_CV(self, frame_counter, time, ux, uy, uxx, uyy, uxy):
+    def run_CV(self, frame_counter, time):
         if self.mask is not None:
             """
             match self.gui.contour_definer.cv_method:
@@ -101,7 +103,7 @@ class RunCV:
             masked_curr_img = cv2.bitwise_and(
                 self.curr_img, self.curr_img, mask=self.mask)
 
-            contours, diff_box = self.find_centroids(masked_curr_img, ux, uy, uxx, uyy, uxy)
+            contours, diff_box = self.find_centroids(masked_curr_img)
             sorted_contours = self.sort_contours_by_area(contours, frame_counter, time, diff_box)
             self.detected_centroids.extend(sorted_contours)
 
@@ -114,7 +116,7 @@ class RunCV:
                 cv2.circle(self.curr_img_data, center, 1, (0, 255, 0), 1)
             
             
-            #cv2.imshow('f', self.curr_img_data)
+            cv2.imshow('f', self.curr_img_data)
         
             
             if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(self.detected_centroids) > 0:
@@ -128,21 +130,30 @@ class RunCV:
                     new.to_csv(self.output_filepath, sep=',', mode='a', index=False, header=False)
                     self.detected_centroids.clear()
         
-    def find_centroids(self, curr_img_gray, ux, uy, uxx, uyy, uxy):
+    def find_centroids(self, curr_img_gray):
         ndim = self.masked_mode_noblur_img.ndim
     
         # ndimage filters need floating point data
         curr_img_gray = curr_img_gray.astype(np.float64, copy=False)
+        #tester(uy, mode_scipy)
+        
+        correlate1d(curr_img_gray, weights, self.ux_tmp, 0)
+        correlate1d(self.ux_tmp, weights, self.ux, 1)
+
+        correlate1d(self.masked_mode_noblur_img, weights, self.uy_tmp, 0)
+        correlate1d(self.uy_tmp, weights, self.uy, 1)
     
-        correlate1d(curr_img_gray, weights, ux)
-        correlate1d(self.masked_mode_noblur_img, weights, uy)
-    
-        correlate1d(curr_img_gray * curr_img_gray, weights, uxx)
-        correlate1d(self.masked_mode_noblur_img * self.masked_mode_noblur_img, weights, uyy)
-        correlate1d(curr_img_gray * self.masked_mode_noblur_img, weights, uxy)
-    
+        correlate1d(curr_img_gray * curr_img_gray, weights, self.uxx_tmp)
+        correlate1d(self.uxx_tmp, weights, self.uxx, 1)#, mode_scipy)
+
+        correlate1d(self.masked_mode_noblur_img * self.masked_mode_noblur_img, weights, self.uyy_tmp)
+        correlate1d(self.uyy_tmp, weights, self.uyy, 1)#, mode_scipy)
+
+        correlate1d(curr_img_gray * self.masked_mode_noblur_img, weights, self.uxy_tmp)
+        correlate1d(self.uxy_tmp, weights, self.uxy, 1)#, mode_scipy)
+
         cov_norm = self.win_size**ndim / (self.win_size**ndim - 1)  # sample covariance
-        diff = run_math(cov_norm, 255, ux, uy, uxx, uyy, uxy)
+        diff = run_math(cov_norm, 255, self.ux, self.uy, self.uxx, self.uyy, self.uxy)
     
         diff = (diff * 255).astype("uint8")
         diff_box = cv2.merge([diff, diff, diff])

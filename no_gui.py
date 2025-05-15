@@ -27,6 +27,7 @@ import serial
 
 import pickle
 
+
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-6-25\\"
 
 #import logging
@@ -209,12 +210,6 @@ class PoolRun:
         r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', cell_contours, shape_of_rows)
         frame_counter = 0
 
-        ux = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
-        uy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
-        uxx = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
-        uyy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
-        uxy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
-        
         setup = False
         
         while not done.is_set():
@@ -223,9 +218,9 @@ class PoolRun:
 
                 image = img_queue.get()
                 image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                #cv2.imshow('im', image_data)
-                #f cv2.waitKey(1) == 1:
-                #    break
+                cv2.imshow('im', image_data)
+                if cv2.waitKey(1) == 1:
+                    break
                 r.curr_img = image
                 r.curr_img_data = image_data
 
@@ -252,7 +247,7 @@ class PoolRun:
                     pr = cProfile.Profile()
                     pr.enable()
 
-                    r.run_CV(frame_counter, time_, ux, uy, uxx, uyy, uxy)
+                    r.run_CV(frame_counter, time_)
 
                     pr.disable()
                     s = io.StringIO()

@@ -16,7 +16,7 @@ def structural_similarity(
     im2 = im2.astype(np.float64, copy=False)
 
     weights, cov_norm = generate_weights(im1.ndim)
-    ux, uy, uxx, uyy, uxy = setup(im1, im2, weights, 1760, 1200)
+    ux, uy, uxx, uyy, uxy = setup(im1, im2, weights, 992, 660)
 
     return run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
@@ -29,7 +29,7 @@ def generate_weights(ndim, sigma=1.5, truncate=3.5):
     weights = ndi._filters._gaussian_kernel1d(sigma, 0, radius)[::-1]
     return weights, cov_norm
 
-def setup(im1, im2, weights, frame_width, frame_height):
+def setup(frame_width, frame_height):
     ux = np.zeros((frame_height, frame_width))
     uy = np.zeros((frame_height, frame_width))
     uxx = np.zeros((frame_height, frame_width))
@@ -42,7 +42,7 @@ def vid_runner(vidcap, mode_img, weights, data_range):
     cont, curr_img = vidcap.read()
     curr_img = cv2.cvtColor(curr_img, cv2.COLOR_BGR2GRAY)
 
-    curr_img_store = np.zeros((1200, 1760))
+    curr_img_store = np.zeros((660,  992))
     curr_img = curr_img.astype(np.float64, copy=False)
     mode_img = mode_img.astype(np.float64, copy=False)
 
@@ -129,7 +129,7 @@ def run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
 
 @nb.njit(parallel=True, fastmath=True)
 def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
-    height, width = (1200, 1760)
+    height, width = (660, 992)
     #print(input.shape)
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
