@@ -14,13 +14,12 @@ import cv2
 from scipy.ndimage import correlate1d as correlate1d_scipy
 
 #from skimage.metrics import structural_similarity
-from structural_sim_from_scratch import setup, generate_weights, correlate1d, run_math, vid_runner
+#from structural_sim import structural_similarity
+from structural_sim_from_scratch import setup, generate_weights, run_math#, correlate1d_x, correlate1d_y
 #from numba import int64, float64
 from scipy import ndimage as ndi
 from numbers import Integral
 import copy
-
-from numba import int64, float64
 
 def structural_similarity_diff(
         im1,
@@ -40,14 +39,14 @@ def structural_similarity_diff(
     uyy = np.zeros((frame_width, frame_height))
     uxy = np.zeros((frame_width, frame_height))
     #r = np.zeros((frame_width, frame_height))
-    
-    correlate1d(im1, weights, ux)
-    correlate1d(im2, weights, uy)
 
-    correlate1d(im1 * im1, weights, uxx)
-    correlate1d(im2 * im2, weights, uyy)
-    correlate1d(im1 * im2, weights, uxy)
-    
+    #correlate1d(im1, weights, ux)
+    #correlate1d(im2, weights, uy)
+
+    #correlate1d(im1 * im1, weights, uxx)
+    #correlate1d(im2 * im2, weights, uyy)
+    #correlate1d(im1 * im2, weights, uxy)
+
     return run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy, )
 
 def crop(ar, crop_width, copy=False, order='K'):
@@ -112,8 +111,6 @@ def crop(ar, crop_width, copy=False, order='K'):
         cropped = ar[slices]
     return cropped
 
-"""
-#@nb.guvectorize([(float64, int64, float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:])], '(),(),(m,n),(m,n),(m,n),(m,n),(m,n)->(m,n)', nopython=True, target='cuda')
 @nb.njit(parallel=True, fastmath=True)
 def run_math_with_diff(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     K1 = 0.01
@@ -140,50 +137,6 @@ def run_math_with_diff(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     #ret[:][:] = (A1 * A2) / (B1 * B2)
     return  (((A1 * A2) / (B1 * B2))*255).astype("uint8")
 
-"""
-@nb.njit(parallel=True, fastmath=True)
-def correlate1d(input, weights, output=None):
-    height, width = (1200, 1760)
-    weight_size = len(weights)
-    size1 = math.floor(weight_size / 2)
-    size2 = weight_size - size1 - 1
-
-    """"""
-    symmetric = 0
-    if weight_size % 2 == 1:  # if the input weight array is even, it will be symmetric = 0, so we don't need to run this calculation
-        if all(weights == weights[::-1]):
-            symmetric = 1
-        elif all(weights == -weights[::-1]):  # i believe this is ok but don't trust it 100%
-            symmetric = -1
-    """"""
-    symmetric = 1
-
-    for ii in nb.prange(height):
-        np_row = input[ii]
-
-        size1_arr = np_row[0:size1][::-1]
-        size2_arr = np_row[-size2:][::-1]
-
-        new_arr = np.concatenate((size1_arr, np_row, size2_arr))
-
-        if symmetric > 0:
-            for start in range(width):
-                n = start+size1
-                total_neighbour = weights[size1]*new_arr[n]
-                for x in range(1, size1+1):
-                    total_neighbour += (new_arr[n+x] + new_arr[n-x]) * weights[size1+x]
-
-                output[ii][start] = total_neighbour
-
-        elif symmetric < 0:
-            pass
-        else:
-            for start in range(len(new_arr) - size1 - 1):
-                output[ii][start] = new_arr[start + size1 + 1] * weights[-1]
-                for i in range(start, start + size1 + 1):
-                    output[ii][start] += new_arr[i] * weights[i - start]
-"""
-
 def run(diff):
     return (diff * 255).astype("uint8")
 
@@ -206,7 +159,7 @@ def vid_runner(vidcap, mode_img, weights, data_range):
 
     curr_img = curr_img.astype(np.float64, copy=False)
     mode_img = mode_img.astype(np.float64, copy=False)
-
+    print(curr_img.shape)
     sigma = 1.5
     truncate = 3.5
     r = int(truncate * sigma + 0.5)  # radius as in ndimage
@@ -215,53 +168,154 @@ def vid_runner(vidcap, mode_img, weights, data_range):
     NP = win_size ** ndim
     cov_norm = NP / (NP - 1)  # sample covariance
 
-    ux, uy, uxx, uyy, uxy = setup(weights, 1760,1200)
-    ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = setup(weights, 1760, 1200)
+    ux, uy, uxx, uyy, uxy = setup(1200,1760) # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
+    # instead treat it like going in the X direction instead
+    ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = setup(1760, 1200)
 
-    correlate1d(curr_img, weights, ux, 0)  # , curr_scipy)
+    correlate1d_x(curr_img, weights, ux_tmp)  # , curr_scipy)
+    correlate1d_y(curr_img, weights, ux)  # , curr_scipy)
+
     S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
-    pr = cProfile.Profile()
-    pr.enable()
-
     frame_count = 0
-    while cont and frame_count < 100:
+    while cont and frame_count < 50:
         axis = 0
         #print("curr")
 
+        height, width = (1200, 1760)
+        weight_size = len(weights)
+        size1 = math.floor(weight_size / 2)
+        size2 = weight_size - size1 - 1
+
+        np_weights = np.array(weights, dtype=np.float64)
+        symmetric = 1
+
+        pr = cProfile.Profile()
+        pr.enable()
         #curr_scipy = correlate1d_scipy(curr_img, weights, axis=axis, mode="reflect", cval=0.0)
-        correlate1d(curr_img, weights, ux_tmp, 0)#, curr_scipy)
-        correlate1d(ux_tmp, weights, ux, 1)#, curr_scipy)
+        #correlate1d_x(curr_img, weights, ux_tmp)
+
+        rearr = np.concatenate((curr_img[0:size1][::-1], curr_img, curr_img[-size2:][::-1]))
+
+        for start in range(height):  # could end early by checking that all vals in arr are the same in which case will be the value
+            # print(start)
+            end = start + size1 + size2 + 1
+            np.dot(rearr[start:end].transpose(), np_weights, out=ux_tmp[start])
+
+        #correlate1d_y(ux_tmp, weights, ux)#, curr_scipy)
+
+        rearr = np.concatenate((ux_tmp[:, 0:size1][:, ::-1], ux_tmp, ux_tmp[:, -size2:][:, ::-1]), axis=1)
+
+        for start in range(width):
+            # print(start)
+            end = start + size1 + size2 + 1
+            np.dot(rearr[:, start:end], np_weights, out=ux[start])
+
 
         #tester(ux, curr_scipy)
 
         #cv2.imshow("corr", ux)
         #print("mode")
         #mode_scipy = correlate1d_scipy(mode_img, weights, axis=axis, mode="reflect", cval=0.0)
-        correlate1d(mode_img, weights, uy_tmp, 0)#, mode_scipy)
-        correlate1d(uy_tmp, weights, uy, 1)#, mode_scipy)
+        #correlate1d_x(mode_img, weights, uy_tmp)#, mode_scipy)
+
+        rearr = np.concatenate((mode_img[0:size1][::-1], mode_img, mode_img[-size2:][::-1]))
+
+        for start in range(height):  # could end early by checking that all vals in arr are the same in which case will be the value
+            # print(start)
+            end = start + size1 + size2 + 1
+            np.dot(rearr[start:end].transpose(), np_weights, out=uy_tmp[start])
+
+        #correlate1d_y(uy_tmp, weights, uy)#, mode_scipy)
+
+        rearr = np.concatenate((uy_tmp[:, 0:size1][:, ::-1], uy_tmp, uy_tmp[:, -size2:][:, ::-1]), axis=1)
+
+        for start in range(width):
+            # print(start)
+            end = start + size1 + size2 + 1
+            np.dot(rearr[:, start:end], np_weights, out=uy[start])
 
         #tester(uy, mode_scipy)
 
         #print("cc")
         #cc_scipy = correlate1d_scipy(curr_img*curr_img, weights, axis=axis, mode="reflect", cval=0.0)
-        correlate1d(curr_img * curr_img, weights, uxx_tmp, 0)#, cc_scipy)
-        correlate1d(uxx_tmp, weights, uxx, 1)#, mode_scipy)
+        #correlate1d_x(curr_img * curr_img, weights, uxx_tmp)#, cc_scipy)
+
+        inp = curr_img * curr_img
+        rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
+
+        for start in range(height):  # could end early by checking that all vals in arr are the same in which case will be the value
+            # print(start)
+            end = start + size1 + size2 + 1
+            np.dot(rearr[start:end].transpose(), np_weights, out=uxx_tmp[start])
+
+        #correlate1d_y(uxx_tmp, weights, uxx)#, mode_scipy)
+
+        rearr = np.concatenate((uxx_tmp[:, 0:size1][:, ::-1], uxx_tmp, uxx_tmp[:, -size2:][:, ::-1]), axis=1)
+
+        for start in range(width):
+            # print(start)
+            end = start + size1 + size2 + 1
+            np.dot(rearr[:, start:end], np_weights, out=uxx[start])
+
+
         #tester(uxx, cc_scipy)
 
         #print("mm")
         #mm_scipy = correlate1d_scipy(mode_img*mode_img, weights, axis=axis, mode="reflect", cval=0.0)
-        correlate1d(mode_img * mode_img, weights, uyy_tmp, 0)#, mm_scipy)
-        correlate1d(uyy_tmp, weights, uyy, 1)#, mode_scipy)
+        #correlate1d_x(mode_img * mode_img, weights, uyy_tmp)#, mm_scipy)
+
+        inp = mode_img * mode_img
+        rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
+
+        for start in range(height):  # could end early by checking that all vals in arr are the same in which case will be the value
+            # print(start)
+            end = start + size1 + size2 + 1
+            np.dot(rearr[start:end].transpose(), np_weights, out=uyy_tmp[start])
+
+        #correlate1d_y(uyy_tmp, weights, uyy)#, mode_scipy)
+
+        rearr = np.concatenate((uyy_tmp[:, 0:size1][:, ::-1], uyy_tmp, uyy_tmp[:, -size2:][:, ::-1]), axis=1)
+
+        for start in range(width):
+            # print(start)
+            end = start + size1 + size2 + 1
+            np.dot(rearr[:, start:end], np_weights, out=uyy[start])
+
+
         #tester(uyy, mm_scipy)
 
         #print("cm")
         #cm_scipy = correlate1d_scipy(curr_img*mode_img, weights, axis=axis, mode="reflect", cval=0.0)
-        correlate1d(curr_img * mode_img, weights, uxy_tmp, 0)#, cm_scipy)
-        correlate1d(uxy_tmp, weights, uxy, 1)#, mode_scipy)
+        #correlate1d_x(curr_img * mode_img, weights, uxy_tmp)#, cm_scipy)
+
+        inp = curr_img * mode_img
+        rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
+
+        for start in range(height):  # could end early by checking that all vals in arr are the same in which case will be the value
+            # print(start)
+            end = start + size1 + size2 + 1
+            np.dot(rearr[start:end].transpose(), np_weights, out=uxy_tmp[start])
+
+        #correlate1d_y(uxy_tmp, weights, uxy)#, mode_scipy)
+        rearr = np.concatenate((uxy_tmp[:, 0:size1][:, ::-1], uxy_tmp, uxy_tmp[:, -size2:][:, ::-1]), axis=1)
+
+        for start in range(width):
+            # print(start)
+            end = start + size1 + size2 + 1
+            np.dot(rearr[:, start:end], np_weights, out=uxy[start])
+
+
         #tester(uxy, cm_scipy)
 
-        S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
+        S = run_math(cov_norm, data_range, ux.transpose(), uy.transpose(), uxx.transpose(), uyy.transpose(), uxy.transpose())
+        pr.disable()
+        s = io.StringIO()
+        sortby = SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
+
         #corr_scipy = correlate1d_scipy(curr_img, weights, axis=-1, mode="reflect", cval=0.0)
         #bool_arr = np.round(ux[:, :]) == np.round(corr_scipy[:, :])
         #print(len(bool_arr[bool_arr == False]))
@@ -286,15 +340,6 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         k = cv2.waitKey(30) & 0xff
         if k == 27:
             break
-=======
-"""
-
-"""
-img1 = np.zeros((660,992))
-img2 = np.zeros((660,992))
-weights = [0.00102838, 0.00759876, 0.03600077, 0.10936069, 0.21300554, 0.26601172,
- 0.21300554, 0.10936069, 0.03600077, 0.00759876, 0.00102838]
->>>>>>> Stashed changes
 
         cont, curr_img = vidcap.read()
 
@@ -303,13 +348,11 @@ weights = [0.00102838, 0.00759876, 0.03600077, 0.10936069, 0.21300554, 0.2660117
 
         frame_count += 1
 
-    pr.disable()
-    s = io.StringIO()
-    sortby = SortKey.CUMULATIVE
-    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-    ps.print_stats()
-    print(s.getvalue())
-"""
+
+
+    #correlate1d_x.parallel_diagnostics(level=4)
+    #correlate1d_y.parallel_diagnostics(level=4)
+    #run_math.parallel_diagnostics(level=4)
 
 if __name__ == '__main__':
     filename = "/home/chamomile/Thyme-lab/data/shortened_vids/6dpf/_2024-02-27-105322-0000-short.avi"
@@ -362,7 +405,6 @@ if __name__ == '__main__':
             weights,
             cov_norm)
 
-<<<<<<< Updated upstream
 #    pr = cProfile.Profile()
 #    pr.enable()
 
@@ -407,16 +449,6 @@ if __name__ == '__main__':
     ps.print_stats()
     print(s.getvalue())
 
-=======
-pr.disable()
-s = io.StringIO()
-sortby = SortKey.CUMULATIVE
-ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-ps.print_stats()
-print(s.getvalue())
-"""
-"""
->>>>>>> Stashed changes
 pr = cProfile.Profile()
 pr.enable()
 
