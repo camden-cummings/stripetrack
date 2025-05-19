@@ -15,7 +15,7 @@ from scipy.ndimage import correlate1d as correlate1d_scipy
 
 #from skimage.metrics import structural_similarity
 #from structural_sim import structural_similarity
-from structural_sim_from_scratch import setup, generate_weights, run_math#, correlate1d_x, correlate1d_y
+from structural_sim_from_scratch import setup, generate_weights#, correlate1d_x, correlate1d_y
 #from numba import int64, float64
 from scipy import ndimage as ndi
 from numbers import Integral
@@ -168,14 +168,17 @@ def vid_runner(vidcap, mode_img, weights, data_range):
     NP = win_size ** ndim
     cov_norm = NP / (NP - 1)  # sample covariance
 
+    C1 = (0.01 * data_range) ** 2 #K = 0.01
+    C2 = (0.03 * data_range) ** 2 #K = 0.03
+
     ux, uy, uxx, uyy, uxy = setup(1200,1760) # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
     # instead treat it like going in the X direction instead
     ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = setup(1760, 1200)
 
-    correlate1d_x(curr_img, weights, ux_tmp)  # , curr_scipy)
-    correlate1d_y(curr_img, weights, ux)  # , curr_scipy)
+    #correlate1d_x(curr_img, weights, ux_tmp)  # , curr_scipy)
+    #correlate1d_y(curr_img, weights, ux)  # , curr_scipy)
 
-    S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
+    #S = run_math(ux, uy, uxx, uyy, uxy)
 
     frame_count = 0
     while cont and frame_count < 50:
@@ -196,11 +199,11 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         #correlate1d_x(curr_img, weights, ux_tmp)
 
         rearr = np.concatenate((curr_img[0:size1][::-1], curr_img, curr_img[-size2:][::-1]))
-
+        rearr = rearr.transpose()
         for start in range(height):  # could end early by checking that all vals in arr are the same in which case will be the value
             # print(start)
             end = start + size1 + size2 + 1
-            np.dot(rearr[start:end].transpose(), np_weights, out=ux_tmp[start])
+            np.dot(rearr[:, start:end], np_weights, out=ux_tmp[start])
 
         #correlate1d_y(ux_tmp, weights, ux)#, curr_scipy)
 
@@ -220,11 +223,11 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         #correlate1d_x(mode_img, weights, uy_tmp)#, mode_scipy)
 
         rearr = np.concatenate((mode_img[0:size1][::-1], mode_img, mode_img[-size2:][::-1]))
-
+        rearr = rearr.transpose()
         for start in range(height):  # could end early by checking that all vals in arr are the same in which case will be the value
             # print(start)
             end = start + size1 + size2 + 1
-            np.dot(rearr[start:end].transpose(), np_weights, out=uy_tmp[start])
+            np.dot(rearr[:, start:end], np_weights, out=uy_tmp[start])
 
         #correlate1d_y(uy_tmp, weights, uy)#, mode_scipy)
 
@@ -243,11 +246,11 @@ def vid_runner(vidcap, mode_img, weights, data_range):
 
         inp = curr_img * curr_img
         rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
-
+        rearr = rearr.transpose()
         for start in range(height):  # could end early by checking that all vals in arr are the same in which case will be the value
             # print(start)
             end = start + size1 + size2 + 1
-            np.dot(rearr[start:end].transpose(), np_weights, out=uxx_tmp[start])
+            np.dot(rearr[:, start:end], np_weights, out=uxx_tmp[start])
 
         #correlate1d_y(uxx_tmp, weights, uxx)#, mode_scipy)
 
@@ -267,11 +270,11 @@ def vid_runner(vidcap, mode_img, weights, data_range):
 
         inp = mode_img * mode_img
         rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
-
+        rearr = rearr.transpose()
         for start in range(height):  # could end early by checking that all vals in arr are the same in which case will be the value
             # print(start)
             end = start + size1 + size2 + 1
-            np.dot(rearr[start:end].transpose(), np_weights, out=uyy_tmp[start])
+            np.dot(rearr[:, start:end], np_weights, out=uyy_tmp[start])
 
         #correlate1d_y(uyy_tmp, weights, uyy)#, mode_scipy)
 
@@ -291,11 +294,11 @@ def vid_runner(vidcap, mode_img, weights, data_range):
 
         inp = curr_img * mode_img
         rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
-
+        rearr = rearr.transpose()
         for start in range(height):  # could end early by checking that all vals in arr are the same in which case will be the value
             # print(start)
             end = start + size1 + size2 + 1
-            np.dot(rearr[start:end].transpose(), np_weights, out=uxy_tmp[start])
+            np.dot(rearr[:, start:end], np_weights, out=uxy_tmp[start])
 
         #correlate1d_y(uxy_tmp, weights, uxy)#, mode_scipy)
         rearr = np.concatenate((uxy_tmp[:, 0:size1][:, ::-1], uxy_tmp, uxy_tmp[:, -size2:][:, ::-1]), axis=1)
@@ -308,13 +311,23 @@ def vid_runner(vidcap, mode_img, weights, data_range):
 
         #tester(uxy, cm_scipy)
 
-        S = run_math(cov_norm, data_range, ux.transpose(), uy.transpose(), uxx.transpose(), uyy.transpose(), uxy.transpose())
-        pr.disable()
-        s = io.StringIO()
-        sortby = SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print(s.getvalue())
+#        S = run_math(ux, uy, uxx, uyy, uxy)
+
+        ux_squared = ux * ux
+        uy_squared = uy * uy
+        ux_uy = ux * uy
+        vx = cov_norm * (uxx - ux_squared)
+        vy = cov_norm * (uyy - uy_squared)
+        vxy = cov_norm * (uxy - ux_uy)
+
+        A1, A2, B1, B2 = (
+            2 * ux_uy + C1,  # C1
+            2 * vxy + C2,  # C2
+            ux_squared + uy_squared + C1,
+            vx + vy + C2,
+        )
+
+        S = (A1 * A2) / (B1 * B2)
 
         #corr_scipy = correlate1d_scipy(curr_img, weights, axis=-1, mode="reflect", cval=0.0)
         #bool_arr = np.round(ux[:, :]) == np.round(corr_scipy[:, :])
@@ -323,6 +336,7 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         #_, S_strsim = structural_similarity(curr_img, mode_img, full=True, data_range=data_range, gaussian_weights=True)
 
         diff = (S * 255).astype("uint8")
+        diff = diff.transpose()
         cv2.imshow('diff', diff)
         #diff_strsim = (S_strsim * 255).astype("uint8")
 
@@ -337,7 +351,7 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         #        print(posn, diff_strsim[posn[0], posn[1]], diff[posn[0], posn[1]])
 
 
-        k = cv2.waitKey(30) & 0xff
+        k = cv2.waitKey(1) & 0xff
         if k == 27:
             break
 
@@ -348,6 +362,12 @@ def vid_runner(vidcap, mode_img, weights, data_range):
 
         frame_count += 1
 
+        pr.disable()
+        s = io.StringIO()
+        sortby = SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
 
 
     #correlate1d_x.parallel_diagnostics(level=4)
