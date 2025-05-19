@@ -172,8 +172,8 @@ def vid_runner(vidcap, mode_img, weights, data_range):
     # instead treat it like going in the X direction instead
     ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = setup(1760, 1200)
 
-    correlate1d_x(curr_img, weights, ux_tmp)  # , curr_scipy)
-    correlate1d_y(curr_img, weights, ux)  # , curr_scipy)
+    #correlate1d_x(curr_img, weights, ux_tmp)  # , curr_scipy)
+    #correlate1d_y(curr_img, weights, ux)  # , curr_scipy)
 
     S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
