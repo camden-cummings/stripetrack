@@ -191,9 +191,9 @@ def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
                     for i in range(start, start + size1 + 1):
                         output[ii][start] += new_arr[i] * weights[i - start]
 
-@nb.njit(parallel=True, fastmath=True)
+#@nb.njit(parallel=True, fastmath=True)
 def correlate1d_x(input, weights, output=None, correct_arr=None):
-    height, width = (1200, 1760)
+    height, width = (660, 992)
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1
@@ -208,12 +208,12 @@ def correlate1d_x(input, weights, output=None, correct_arr=None):
         np.dot(rearr[start:end].transpose(), np.array(weights, dtype=np.float64), out=output[start])
 
 
-@nb.njit(parallel=True, fastmath=True)
+#@nb.njit(parallel=True, fastmath=True)
 def correlate1d_y(input, weights, output=None):
     #pr = cProfile.Profile()
     #pr.enable()
 
-    height, width = (1200, 1760)
+    height, width = (660, 992)
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1
