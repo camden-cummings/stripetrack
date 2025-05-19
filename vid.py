@@ -16,7 +16,9 @@ from AcquireAndDisplayClass import get_image
 from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_device_serial_number
 from gui_helpers import GUIHelpers
 from tracker.helpers.centroid_manip import find_centroid_of_contour, check_masked_image, generate_row_col
-from structural_sim_from_scratch import correlate1d, run_math, setup as ssim_setup #structural_similarity
+from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, setup as ssim_setup #structural_similarity
+
+import math
 
 global continue_recording
 global run_once
@@ -50,8 +52,9 @@ class RunCV:
         self.movie_deq = []
         self.cell_contours = cell_contours
         self.shape_of_rows = shape_of_rows
-        self.ux, self.uy, self.uxx, self.uyy, self.uxy = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT)
+        
         self.ux_tmp, self.uy_tmp, self.uxx_tmp, self.uyy_tmp, self.uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT)
+        self.ux, self.uy, self.uxx, self.uyy, self.uxy = ssim_setup(self.FRAME_HEIGHT, self.FRAME_WIDTH)
 
         sigma = 1.5
         truncate = 3.5
@@ -63,6 +66,11 @@ class RunCV:
         
         self.cov_norm = win_size**ndim / (win_size**ndim - 1)  # sample covariance
 
+        weight_size = len(weights)
+        self.size1 = math.floor(weight_size / 2)
+        self.size2 = weight_size - self.size1 - 1
+
+        self.np_weights = np.array(weights, dtype=np.float64)
         
         
     def find_mode(self, frame_counter):
@@ -139,24 +147,100 @@ class RunCV:
     def find_centroids(self, curr_img_gray):    
         # ndimage filters need floating point data
         curr_img_gray = curr_img_gray.astype(np.float64, copy=False)
-
-        #tester(uy, mode_scipy)
         
-        correlate1d(curr_img_gray, weights, self.ux_tmp, 0)
-        correlate1d(self.ux_tmp, weights, self.ux, 1)
+        """
+        correlate1d_x(curr_img_gray, weights, self.ux_tmp)
+        correlate1d_y(self.ux_tmp, weights, self.ux)
 
-        correlate1d(self.masked_mode_noblur_img, weights, self.uy_tmp, 0)
-        correlate1d(self.uy_tmp, weights, self.uy, 1)
+        correlate1d_x(self.masked_mode_noblur_img, weights, self.uy_tmp)
+        correlate1d_y(self.uy_tmp, weights, self.uy)
     
-        correlate1d(curr_img_gray * curr_img_gray, weights, self.uxx_tmp)
-        correlate1d(self.uxx_tmp, weights, self.uxx, 1)#, mode_scipy)
+        correlate1d_x(curr_img_gray * curr_img_gray, weights, self.uxx_tmp)
+        correlate1d_y(self.uxx_tmp, weights, self.uxx)#, mode_scipy)
 
-        correlate1d(self.masked_mode_noblur_img * self.masked_mode_noblur_img, weights, self.uyy_tmp)
-        correlate1d(self.uyy_tmp, weights, self.uyy, 1)#, mode_scipy)
+        correlate1d_x(self.masked_mode_noblur_img * self.masked_mode_noblur_img, weights, self.uyy_tmp)
+        correlate1d_y(self.uyy_tmp, weights, self.uyy)#, mode_scipy)
 
-        correlate1d(curr_img_gray * self.masked_mode_noblur_img, weights, self.uxy_tmp)
-        correlate1d(self.uxy_tmp, weights, self.uxy, 1)#, mode_scipy)
+        correlate1d_x(curr_img_gray * self.masked_mode_noblur_img, weights, self.uxy_tmp)
+        correlate1d_y(self.uxy_tmp, weights, self.uxy)#, mode_scipy)
+        """
+        
+        rearr = np.concatenate((curr_img_gray[0:self.size1][::-1], curr_img_gray, curr_img_gray[-self.size2:][::-1]))
 
+        for start in range(self.FRAME_HEIGHT):  # could end early by checking that all vals in arr are the same in which case will be the value
+            # print(start)
+            end = start + self.size1 + self.size2 + 1
+            np.dot(rearr[start:end].transpose(), np_weights, out=self.ux_tmp[start])
+
+        rearr = np.concatenate((self.ux_tmp[:, 0:self.size1][:, ::-1], self.ux_tmp, self.ux_tmp[:, -self.size2:][:, ::-1]), axis=1)
+
+        for start in range(self.FRAME_WIDTH):
+            # print(start)
+            end = start + self.size1 + self.size2 + 1
+            np.dot(rearr[:, start:end], np_weights, out=self.ux[start])
+
+        rearr = np.concatenate((self.masked_mode_noblur_img[0:self.size1][::-1], self.masked_mode_noblur_img, self.masked_mode_noblur_img[-self.size2:][::-1]))
+
+        for start in range(self.FRAME_HEIGHT):  # could end early by checking that all vals in arr are the same in which case will be the value
+            # print(start)
+            end = start + self.size1 + self.size2 + 1
+            np.dot(rearr[start:end].transpose(), np_weights, out=self.uy_tmp[start])
+
+        rearr = np.concatenate((self.uy_tmp[:, 0:self.size1][:, ::-1], self.uy_tmp, self.uy_tmp[:, -self.size2:][:, ::-1]), axis=1)
+
+        for start in range(self.FRAME_WIDTH):
+            # print(start)
+            end = start + self.size1 + self.size2 + 1
+            np.dot(rearr[:, start:end], np_weights, out=self.uy[start])
+
+        inp = curr_img_gray * curr_img_gray
+        rearr = np.concatenate((inp[0:self.size1][::-1], inp, inp[-self.size2:][::-1]))
+
+        for start in range(self.FRAME_HEIGHT):  # could end early by checking that all vals in arr are the same in which case will be the value
+            # print(start)
+            end = start + self.size1 + self.size2 + 1
+            np.dot(rearr[start:end].transpose(), np_weights, out=self.uxx_tmp[start])
+
+        #correlate1d_y(uxx_tmp, weights, uxx)#, mode_scipy)
+
+        rearr = np.concatenate((self.uxx_tmp[:, 0:self.size1][:, ::-1], self.uxx_tmp, self.uxx_tmp[:, -self.size2:][:, ::-1]), axis=1)
+
+        for start in range(self.FRAME_WIDTH):
+            # print(start)
+            end = start + self.size1 + self.size2 + 1
+            np.dot(rearr[:, start:end], np_weights, out=self.uxx[start])
+
+        inp = self.masked_mode_noblur_img * self.masked_mode_noblur_img
+        rearr = np.concatenate((inp[0:self.size1][::-1], inp, inp[-self.size2:][::-1]))
+
+        for start in range(self.FRAME_HEIGHT):  # could end early by checking that all vals in arr are the same in which case will be the value
+            # print(start)
+            end = start + self.size1 + self.size2 + 1
+            np.dot(rearr[start:end].transpose(), np_weights, out=self.uyy_tmp[start])
+
+        rearr = np.concatenate((self.uyy_tmp[:, 0:self.size1][:, ::-1], self.uyy_tmp, self.uyy_tmp[:, -self.size2:][:, ::-1]), axis=1)
+
+        for start in range(self.FRAME_WIDTH):
+            # print(start)
+            end = start + self.size1 + self.size2 + 1
+            np.dot(rearr[:, start:end], np_weights, out=self.uyy[start])
+
+        inp = curr_img_gray * self.masked_mode_noblur_img
+        rearr = np.concatenate((inp[0:self.size1][::-1], inp, inp[-self.size2:][::-1]))
+
+        for start in range(self.FRAME_HEIGHT):  # could end early by checking that all vals in arr are the same in which case will be the value
+            # print(start)
+            end = start + self.size1 + self.size2 + 1
+            np.dot(rearr[start:end].transpose(), np_weights, out=self.uxy_tmp[start])
+
+        rearr = np.concatenate((self.uxy_tmp[:, 0:self.size1][:, ::-1], self.uxy_tmp, self.uxy_tmp[:, -self.size2:][:, ::-1]), axis=1)
+
+        for start in range(self.FRAME_WIDTH):
+            # print(start)
+            end = start + self.size1 + self.size2 + 1
+            np.dot(rearr[:, start:end], np_weights, out=self.uxy[start])
+
+        
         diff = run_math(self.cov_norm, 255, self.ux, self.uy, self.uxx, self.uyy, self.uxy)
 
 #        _, str_sim_diff = structural_similarity(curr_img_gray, self.masked_mode_noblur_img, full=True)
@@ -164,7 +248,7 @@ class RunCV:
         #cv2.imshow('curr in find', curr_img_gray)
         diff = (diff * 255).astype("uint8")
 
-        cv2.imshow('diff', diff)
+        #cv2.imshow('diff', diff)
         
 
         #cv2.imshow('masked mode noblur img', self.masked_mode_noblur_img)
