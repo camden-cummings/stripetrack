@@ -132,7 +132,7 @@ def run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
 
     return (A1 * A2) / (B1 * B2)
 
-#@nb.njit(parallel=True, fastmath=True)
+@nb.njit(parallel=True, fastmath=True)
 def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
     height, width = (1200, 1760)
     #print(input.shape)
@@ -206,24 +206,9 @@ def correlate1d_x(input, weights, output=None, correct_arr=None):
         #print(start)
         end = start + size1 + size2 + 1
         np.dot(rearr[start:end].transpose(), np.array(weights, dtype=np.float64), out=output[start])
-        #print(n)
-        #output[start] = np.dot(rearr[start:end].transpose(), np.array(weights, dtype=np.float32), axes=1)
-        #for ii in range(width):
-        #    if correct_arr is not None and abs(correct_arr[start][ii] - output[start][ii]) > 0.2:
-        #        print(correct_arr[start][ii], output[start][ii])
-    """ 
-    for jj in range(width):
-        new_arr = rearr[:, jj]
-        
-        if symmetric > 0:
-            for start in range(height):  # could end early by checking that all vals in arr are the same in which case will be the value
-                n = start + size1
 
-                arr = np.array([new_arr[i] for i in range(n-size1, n+size1+1)])
-                output[start][jj] = np.tensordot(arr, weights, axes=1)
-    """
 
-#@nb.njit(parallel=True, fastmath=True)
+@nb.njit(parallel=True, fastmath=True)
 def correlate1d_y(input, weights, output=None):
     #pr = cProfile.Profile()
     #pr.enable()
@@ -243,35 +228,6 @@ def correlate1d_y(input, weights, output=None):
 
         np.dot(rearr[:, start:end], np.array(weights, dtype=np.float64), out=output[start])
 
-    #pr.disable()
-    #s = io.StringIO()
-    #sortby = SortKey.CUMULATIVE
-    #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-    #ps.print_stats()
-    #print(s.getvalue())
-
-"""
-        if symmetric > 0:
-            for start in range(width):
-                n = start + size1
-
-                arr = np.array([new_arr[i] for i in range(n-size1, n+size1+1)])
-                output[ii][start]  = np.tensordot(arr, weights, axes=1)
-"""
-"""
-    if correct_arr is not None:
-        bool_arr = output[:, :] == correct_arr[:, :]
-        val = len(bool_arr[bool_arr == False])
-        print(val)
-        if val > 0:
-            arr = np.argwhere(bool_arr == False)
-
-            for posn in arr:
-                n = correct_arr[posn[0], posn[1]]
-                nd = output[posn[0], posn[1]]
-                if abs(n - nd) > 0.01:
-                    print(n, nd, abs(n - nd))
-    """
 if __name__ == '__main__':
     fn = "/home/chamomile/Thyme-lab/data/vids/smart-dumb-run-fc2_save_2025-02-06-151144-0000.mp4"
     vidcap = cv2.VideoCapture(fn)
