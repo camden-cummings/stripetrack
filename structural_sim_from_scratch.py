@@ -109,9 +109,6 @@ def vid_runner(vidcap, mode_img, weights, data_range):
 #@nb.guvectorize([(float64, int64, float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:])], '(),(),(m,n),(m,n),(m,n),(m,n),(m,n)->(m,n)', nopython=True, target='cuda')
 @nb.njit(parallel=True, fastmath=True)
 def run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
-    K1 = 0.01
-    K2 = 0.03
-
     ux_squared = ux * ux
     uy_squared = uy * uy
     ux_uy = ux * uy
@@ -119,9 +116,8 @@ def run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     vy = cov_norm * (uyy - uy_squared)
     vxy = cov_norm * (uxy - ux_uy)
 
-    R = data_range
-    C1 = (K1 * R) ** 2
-    C2 = (K2 * R) ** 2
+    C1 = (0.01 * data_range) ** 2
+    C2 = (0.03 * data_range) ** 2
 
     A1, A2, B1, B2 = (
         2 * ux_uy + C1,
@@ -191,8 +187,8 @@ def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
                     for i in range(start, start + size1 + 1):
                         output[ii][start] += new_arr[i] * weights[i - start]
 
-@nb.njit(parallel=True, fastmath=True)
-def correlate1d_x(input, np_weights, output=None):
+@nb.njit(parallel=True)
+def correlate1d_x(input, np_weights, output):
     #height, width = (1200, 1760)
     #weight_size = np_weights.shape[0]
     #size1 = math.floor(weight_size / 2)
@@ -202,17 +198,18 @@ def correlate1d_x(input, np_weights, output=None):
 
     rearr = np.concatenate((input[0:5][::-1], input, input[-5:][::-1]))
     rearr = rearr.transpose()
-    for start in nb.prange(1200): # height
+    for start in nb.prange(660): # height
         # could end early by checking that all vals in arr are the same in which case will be the value
         #print(start)
         end = start + 11 # size1 (5) + size2 (5) + 1
+
         np.dot(rearr[:, start:end], np_weights, out=output[start])
         #print(rearr[:, start:end].shape)
         #print()
         #np.array([np_weights for i in range(int(19360/weight_size))]).flatten()
 
-@nb.njit(parallel=True, fastmath=True)
-def correlate1d_y(input, np_weights, output=None):
+@nb.njit(parallel=True)
+def correlate1d_y(input, np_weights, output):
     #pr = cProfile.Profile()
     #pr.enable()
 
@@ -223,11 +220,12 @@ def correlate1d_y(input, np_weights, output=None):
     #symmetric = 1
 
     rearr = np.concatenate((input[:, 0:5][:,::-1], input, input[:, -5:][:,::-1]), axis=1)
-
-    for start in nb.prange(1760): # width
+    rearr = rearr.transpose()
+    for start in nb.prange(660): # width
         # print(start)
         end = start + 11 # size1 (5) + size2 (5) + 1
-        np.dot(rearr[:, start:end], np_weights, out=output[start])
+#        np.dot(rearr[:, start:end], np_weights, out=output[start])
+        np.dot(rearr[start:end].transpose(), np_weights, out=output[start])
 
 
 if __name__ == '__main__':

@@ -143,12 +143,13 @@ class RunCV:
                                        columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
                     new.to_csv(self.output_filepath, sep=',', mode='a', index=False, header=False)
                     self.detected_centroids.clear()
-        
+    
+"""
     def find_centroids(self, curr_img_gray):    
         # ndimage filters need floating point data
         curr_img_gray = curr_img_gray.astype(np.float64, copy=False)
-        
-        """
+"""
+"""
         correlate1d_x(curr_img_gray, weights, self.ux_tmp)
         correlate1d_y(self.ux_tmp, weights, self.ux)
 
@@ -163,8 +164,8 @@ class RunCV:
 
         correlate1d_x(curr_img_gray * self.masked_mode_noblur_img, weights, self.uxy_tmp)
         correlate1d_y(self.uxy_tmp, weights, self.uxy)#, mode_scipy)
-        """
-        
+"""
+"""
         rearr = np.concatenate((curr_img_gray[0:self.size1][::-1], curr_img_gray, curr_img_gray[-self.size2:][::-1]))
 
         for start in range(self.FRAME_HEIGHT):  # could end early by checking that all vals in arr are the same in which case will be the value
@@ -264,7 +265,8 @@ class RunCV:
         #contours = [c for c in contours if self.gui.contour_definer.centroid_size < cv2.contourArea(c) < 500000]
         contours = [c for c in contours if 70 < cv2.contourArea(c) < 500000]
 
-        """
+"""
+"""
         for row, col in generate_row_col(shape_of_rows):
             cell_count = row * shape_of_rows[row] + col
     
@@ -292,9 +294,11 @@ class RunCV:
                 all_centr_in_frame.append([frame_count, row, col, ten_darkest_centroids[0][0][0], ten_darkest_centroids[0][0][1]])
             #for c in ten_darkest_centroids:
             #    all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
-        """
+"""
+"""
         return contours, diff
-
+"""
+"""
     def sort_contours_by_area(self, contours, frame_count, time, diff):
         # darkest_pixel_val = 255
         posns = [[[] for j in range(self.shape_of_rows[i])] for i in
@@ -341,6 +345,7 @@ class RunCV:
                 # for c in ten_darkest_centroids:
                 #    all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
         return sorted_contours
+"""
 
 def process_command_string(cmd_string: pd.DataFrame) -> [list[str], str, int]:
     """Converts a command into separate pieces."""

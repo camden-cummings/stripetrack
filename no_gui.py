@@ -28,6 +28,7 @@ import serial
 import pickle
 from tracker.roi_manip import convert_to_contours
 
+from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, setup as ssim_setup
 
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-6-25\\"
 
@@ -209,7 +210,7 @@ class PoolRun:
         cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker-full-restart.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
         r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', cell_contours, shape_of_rows)
-        
+           
         # just for testing
         image = img_queue.get()
         r.mode_noblur_img=image
@@ -218,6 +219,29 @@ class PoolRun:
 
         setup = False
         
+        sigma = 1.5
+        truncate = 3.5
+        radius = int(truncate * sigma + 0.5)  # radius as in ndimage
+        win_size = 2 * radius + 1
+        ndim = 2
+        NP = win_size ** ndim
+        cov_norm = NP / (NP - 1)  # sample covariance
+        
+        data_range = 255
+        
+        C1 = (0.01 * data_range) ** 2 #K = 0.01
+        C2 = (0.03 * data_range) ** 2 #K = 0.03
+
+        ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_HEIGHT,self.FRAME_WIDTH) # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
+        
+        weights = [0.00102838, 0.00759876, 0.03600077, 0.10936069, 0.21300554, 0.26601172,
+                   0.21300554, 0.10936069, 0.03600077, 0.00759876, 0.00102838]        
+        
+        np_weights = np.asarray(weights)
+
+        # instead treat it like going in the X direction instead
+        ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT)
+
         while not done.is_set():
             try:
                 print(img_queue.qsize())
@@ -234,29 +258,74 @@ class PoolRun:
                 if r.mode_noblur_img is None:
                     r.find_mode(frame_counter)
                 elif not setup:
-                    contour_mask = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH, 3))
-                    for c in cell_contours:
-                        non_int = np.array(c)
-                        contour_mask = cv2.drawContours(contour_mask, [non_int],
-                                                        -1, (255, 255, 255), thickness=cv2.FILLED)
+                    #contour_mask = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH, 3))
+                    #for c in cell_contours:
+                    #    non_int = np.array(c)
+                    #    contour_mask = cv2.drawContours(contour_mask, [non_int],
+                    #                                    -1, (255, 255, 255), thickness=cv2.FILLED)
                         
-                    r.mask = cv2.cvtColor(
-                        np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
-                    
+
+                    r.mask = contour_mask
                     masked_mode_noblur_img = cv2.bitwise_and(
                         r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
+                    
                     r.masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
-
+                    masked_mode_noblur_img = r.masked_mode_noblur_img
                     setup = True
+                    
+                    # we don't have to do this every time - will remain constant
+                    correlate1d_x(masked_mode_noblur_img, np_weights, uy_tmp)  # , curr_scipy)
+                    correlate1d_y(uy_tmp, np_weights, uy)  # , curr_scipy)
+                    
+                    correlate1d_x(masked_mode_noblur_img * masked_mode_noblur_img, np_weights, uyy_tmp)  # , curr_scipy)
+                    correlate1d_y(uyy_tmp, np_weights, uyy)  # , curr_scipy)
+                    uy_squared = uy * uy
+                    vy = cov_norm * (uyy - uy_squared)
+
                 else:
                     time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
                     pr = cProfile.Profile()
                     pr.enable()
 
-                    r.run_CV(frame_counter, time_)
+                    print(timer.now())
+                    curr_img_gray = image.astype(np.float64, copy=False)
+
+                    masked_curr_img = cv2.bitwise_and(
+                        curr_img_gray, curr_img_gray, mask=contour_mask)
+                    
+                    correlate1d_x(masked_curr_img, np_weights, ux_tmp)  # , curr_scipy)
+                    correlate1d_y(ux_tmp, np_weights, ux)  # , curr_scipy)
+                    
+                    correlate1d_x(masked_curr_img * masked_curr_img, np_weights, uxx_tmp)  # , curr_scipy)
+                    correlate1d_y(uxx_tmp, np_weights, uxx)  # , curr_scipy)
+                    
+                    correlate1d_x(masked_mode_noblur_img * masked_curr_img, np_weights, uxy_tmp)  # , curr_scipy)
+                    correlate1d_y(uxy_tmp, np_weights, uxy)  # , curr_scipy)
+
+            
+                    diff = run_math(cov_norm, 255, ux, uy, uxx, uyy, uxy)
+                    
+                    diff = diff.transpose()
+            #        _, str_sim_diff = structural_similarity(curr_img_gray, self.masked_mode_noblur_img, full=True)
+                    
+                    #cv2.imshow('curr in find', curr_img_gray)
+                    diff = (diff * 255).astype("uint8")
+            
+                    cv2.imshow('diff', diff)
+                    
+                    thresh_img = cv2.threshold(diff, 155, 255, cv2.THRESH_BINARY)[1]
+                    contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+                    contours = contours[0] if len(contours) == 2 else contours[1]
+                
+                #    cv2.drawContours(diff, contours, -1, (0,255,0), 1)
+                    #contours = [c for c in contours if self.gui.contour_definer.centroid_size < cv2.contourArea(c) < 500000]
+                    contours = [c for c in contours if 70 < cv2.contourArea(c) < 500000]
+                    
+                    #r.run_CV(frame_counter, time_)
 
                     #cv2.imshow('im', r.curr_img_data)
-                    
+                    print(timer.now())
+
                     pr.disable()
                     s = io.StringIO()
                     sortby = SortKey.CUMULATIVE
