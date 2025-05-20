@@ -191,42 +191,44 @@ def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
                     for i in range(start, start + size1 + 1):
                         output[ii][start] += new_arr[i] * weights[i - start]
 
-#@nb.njit(parallel=True, fastmath=True)
-def correlate1d_x(input, weights, output=None, correct_arr=None):
-    height, width = (660, 992)
-    weight_size = len(weights)
-    size1 = math.floor(weight_size / 2)
-    size2 = weight_size - size1 - 1
+@nb.njit(parallel=True, fastmath=True)
+def correlate1d_x(input, np_weights, output=None):
+    #height, width = (1200, 1760)
+    #weight_size = np_weights.shape[0]
+    #size1 = math.floor(weight_size / 2)
+    #size2 = weight_size - size1 - 1
 
-    symmetric = 1
+    # symmetric = 1
 
-    rearr = np.concatenate((input[0:size1][::-1], input, input[-size2:][::-1]))
-
-    for start in nb.prange(height):  # could end early by checking that all vals in arr are the same in which case will be the value
+    rearr = np.concatenate((input[0:5][::-1], input, input[-5:][::-1]))
+    rearr = rearr.transpose()
+    for start in nb.prange(1200): # height
+        # could end early by checking that all vals in arr are the same in which case will be the value
         #print(start)
-        end = start + size1 + size2 + 1
-        np.dot(rearr[start:end].transpose(), np.array(weights, dtype=np.float64), out=output[start])
+        end = start + 11 # size1 (5) + size2 (5) + 1
+        np.dot(rearr[:, start:end], np_weights, out=output[start])
+        #print(rearr[:, start:end].shape)
+        #print()
+        #np.array([np_weights for i in range(int(19360/weight_size))]).flatten()
 
-
-#@nb.njit(parallel=True, fastmath=True)
-def correlate1d_y(input, weights, output=None):
+@nb.njit(parallel=True, fastmath=True)
+def correlate1d_y(input, np_weights, output=None):
     #pr = cProfile.Profile()
     #pr.enable()
 
-    height, width = (660, 992)
-    weight_size = len(weights)
-    size1 = math.floor(weight_size / 2)
-    size2 = weight_size - size1 - 1
+    #height, width = (1200, 1760)
+    #weight_size = np_weights.shape[0]
+    #size1 = math.floor(weight_size / 2)
+    #size2 = weight_size - size1 - 1
+    #symmetric = 1
 
-    symmetric = 1
+    rearr = np.concatenate((input[:, 0:5][:,::-1], input, input[:, -5:][:,::-1]), axis=1)
 
-    rearr = np.concatenate((input[:, 0:size1][:,::-1], input, input[:, -size2:][:,::-1]), axis=1)
-
-    for start in range(width):
+    for start in nb.prange(1760): # width
         # print(start)
-        end = start + size1 + size2 + 1
+        end = start + 11 # size1 (5) + size2 (5) + 1
+        np.dot(rearr[:, start:end], np_weights, out=output[start])
 
-        np.dot(rearr[:, start:end], np.array(weights, dtype=np.float64), out=output[start])
 
 if __name__ == '__main__':
     fn = "/home/chamomile/Thyme-lab/data/vids/smart-dumb-run-fc2_save_2025-02-06-151144-0000.mp4"
