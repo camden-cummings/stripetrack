@@ -148,25 +148,38 @@ def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
     symmetric = 1
 
     if axis == 0:
+        rearr = np.concatenate((input[0:size1][::-1], input, input[-size2:][::-1]))
         for jj in nb.prange(width):
-            np_row = input[:, jj]
+            #np_row = input[:, jj]
 
-            size1_arr = np_row[0:size1][::-1]
-            size2_arr = np_row[-size2:][::-1]
-            new_arr = np.concatenate((size1_arr, np_row, size2_arr))
+            #size1_arr = np_row[0:size1][::-1]
+            #size2_arr = np_row[-size2:][::-1]
+            #new_arr = np.concatenate((size1_arr, np_row, size2_arr))
+
+            new_arr = rearr[:, jj]
             if symmetric > 0:
                 for start in range(height):
                     n = start+size1
+
+#                    test = new_arr[n-size1:n+size1+1]
+
+                    #print(test, len(test[test == test[0]]))
+                    #if np.all(test == test[0]):
+                    #    output[start][jj] = test[0]
+                    #else:
                     total_neighbour = weights[size1]*new_arr[n]
                     for x in range(1, size1+1):
                         total_neighbour += (new_arr[n+x] + new_arr[n-x]) * weights[size1+x]
                     output[start][jj] = total_neighbour
     elif axis == 1:
+        #rearr = np.concatenate((input[:, 0:size1][::-1], input, input[:, -size2:][::-1]), axis=1) # something in the construction of this is wrong but I can't figure out what
         for ii in nb.prange(height):
             np_row = input[ii]
             size1_arr = np_row[0:size1][::-1]
             size2_arr = np_row[-size2:][::-1]
             new_arr = np.concatenate((size1_arr, np_row, size2_arr))
+            #print("-", rearr[ii], new_arr)
+            #new_arr = rearr[ii]
 
             if symmetric > 0:
                 for start in range(width):
@@ -198,7 +211,33 @@ def correlate1d_x(input, np_weights, output):
 
     rearr = np.concatenate((input[0:5][::-1], input, input[-5:][::-1]))
     rearr = rearr.transpose()
-    for start in nb.prange(660): # height
+    for start in nb.prange(1200): # width - double check, og was 660 aka height
+        # could end early by checking that all vals in arr are the same in which case will be the value
+        #print(start)
+
+        # size1 (5) + size2 (5) + 1
+
+        #print(rearr[:, start:start+5].shape, .shape)
+        #print(rearr[0, start:start + 11])
+        #print(rearr[0, start:start + 5][::-1]+rearr[0, start+6:start+11])
+        np.dot(rearr[:, start:start + 11], np_weights, out=output[start])
+        #np.dot(rearr[:, start:start + 5][::-1]+rearr[:, start+6:start+11], np_weights[6:11], output[start])
+        #output[start] = output[start] + rearr[:, start + 5] * np_weights[5]
+        #print(output[start])
+        #print("out", output[start])
+
+@nb.njit(parallel=True)
+def correlate1d_x_store(input, np_weights, output):
+    #height, width = (1200, 1760)
+    #weight_size = np_weights.shape[0]
+    #size1 = math.floor(weight_size / 2)
+    #size2 = weight_size - size1 - 1
+
+    # symmetric = 1
+
+    rearr = np.concatenate((input[0:5][::-1], input, input[-5:][::-1]))
+    rearr = rearr.transpose()
+    for start in nb.prange(1200): # height
         # could end early by checking that all vals in arr are the same in which case will be the value
         #print(start)
         end = start + 11 # size1 (5) + size2 (5) + 1
@@ -221,11 +260,11 @@ def correlate1d_y(input, np_weights, output):
 
     rearr = np.concatenate((input[:, 0:5][:,::-1], input, input[:, -5:][:,::-1]), axis=1)
     rearr = rearr.transpose()
-    for start in nb.prange(660): # width
+    for start in nb.prange(1920): # width
         # print(start)
-        end = start + 11 # size1 (5) + size2 (5) + 1
+        #end = start + 11 # size1 (5) + size2 (5) + 1
 #        np.dot(rearr[:, start:end], np_weights, out=output[start])
-        np.dot(rearr[start:end].transpose(), np_weights, out=output[start])
+        np.dot(rearr[start:start + 11].transpose(), np_weights, out=output[start])
 
 
 if __name__ == '__main__':
