@@ -108,12 +108,11 @@ def vid_runner(vidcap, mode_img, weights, data_range):
 
 #@nb.guvectorize([(float64, int64, float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:])], '(),(),(m,n),(m,n),(m,n),(m,n),(m,n)->(m,n)', nopython=True, target='cuda')
 @nb.njit(parallel=True, fastmath=True)
-def run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
+def run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy):
     ux_squared = ux * ux
     uy_squared = uy * uy
     ux_uy = ux * uy
     vx = cov_norm * (uxx - ux_squared)
-    vy = cov_norm * (uyy - uy_squared)
     vxy = cov_norm * (uxy - ux_uy)
 
     C1 = (0.01 * data_range) ** 2
@@ -129,8 +128,8 @@ def run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     return (A1 * A2) / (B1 * B2)
 
 @nb.njit(parallel=True, fastmath=True)
-def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
-    height, width = (1200, 1760)
+def correlate1d(input, weights, output=None, axis=0):
+    height, width = (660, 992)
     #print(input.shape)
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
@@ -200,6 +199,65 @@ def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
                     for i in range(start, start + size1 + 1):
                         output[ii][start] += new_arr[i] * weights[i - start]
 
+@nb.njit(parallel=True, fastmath=True)
+def correlate1d_x(input, weights, output):
+    height, width = (660, 992)
+    #print(input.shape)
+    weight_size = len(weights)
+    size1 = math.floor(weight_size / 2)
+    size2 = weight_size - size1 - 1
+    
+    #rearr = np.concatenate((input[0:size1][::-1], input, input[-size2:][::-1]))
+    for jj in nb.prange(width):
+        np_row = input[:, jj]
+
+        size1_arr = np_row[0:size1][::-1]
+        size2_arr = np_row[-size2:][::-1]
+        new_arr = np.concatenate((size1_arr, np_row, size2_arr))
+
+        #new_arr = rearr[:, jj]
+        for start in range(height):
+            n = start+size1
+
+#                    test = new_arr[n-size1:n+size1+1]
+
+            #print(test, len(test[test == test[0]]))
+            #if np.all(test == test[0]):
+            #    output[start][jj] = test[0]
+            #else:
+            total_neighbour = weights[size1]*new_arr[n]
+            for x in range(1, size1+1):
+                total_neighbour += (new_arr[n+x] + new_arr[n-x]) * weights[size1+x]
+            output[start][jj] = total_neighbour
+            
+@nb.njit(parallel=True, fastmath=True)         
+def correlate1d_y(input, weights, output):
+    height, width = (660, 992)
+    #print(input.shape)
+    weight_size = len(weights)
+    size1 = math.floor(weight_size / 2)
+    size2 = weight_size - size1 - 1
+    
+    #rearr = np.concatenate((input[:, 0:size1][::-1], input, input[:, -size2:][::-1]), axis=1) # something in the construction of this is wrong but I can't figure out what
+    for ii in nb.prange(height):
+        np_row = input[ii]
+        size1_arr = np_row[0:size1][::-1]
+        size2_arr = np_row[-size2:][::-1]
+        new_arr = np.concatenate((size1_arr, np_row, size2_arr))
+        #print("-", rearr[ii], new_arr)
+        #new_arr = rearr[ii]
+
+        for start in range(width):
+            n = start+size1
+            total_neighbour = weights[size1]*new_arr[n]
+            for x in range(1, size1+1):
+                total_neighbour += (new_arr[n+x] + new_arr[n-x]) * weights[size1+x]
+            output[ii][start] = total_neighbour
+
+            #if correct_arr is not None and abs(correct_arr[ii][start] - output[ii][start]) > 0.2:
+            #    print(correct_arr[ii][start], output[ii][start])
+
+"""
 @nb.njit(parallel=True)
 def correlate1d_x(input, np_weights, output):
     #height, width = (1200, 1760)
@@ -211,7 +269,7 @@ def correlate1d_x(input, np_weights, output):
 
     rearr = np.concatenate((input[0:5][::-1], input, input[-5:][::-1]))
     rearr = rearr.transpose()
-    for start in nb.prange(1200): # width - double check, og was 660 aka height
+    for start in nb.prange(660): # width - double check, og was 660 aka height
         # could end early by checking that all vals in arr are the same in which case will be the value
         #print(start)
 
@@ -237,7 +295,7 @@ def correlate1d_x_store(input, np_weights, output):
 
     rearr = np.concatenate((input[0:5][::-1], input, input[-5:][::-1]))
     rearr = rearr.transpose()
-    for start in nb.prange(1200): # height
+    for start in nb.prange(660): # height
         # could end early by checking that all vals in arr are the same in which case will be the value
         #print(start)
         end = start + 11 # size1 (5) + size2 (5) + 1
@@ -260,12 +318,12 @@ def correlate1d_y(input, np_weights, output):
 
     rearr = np.concatenate((input[:, 0:5][:,::-1], input, input[:, -5:][:,::-1]), axis=1)
     rearr = rearr.transpose()
-    for start in nb.prange(1920): # width
+    for start in nb.prange(660): # width
         # print(start)
         #end = start + 11 # size1 (5) + size2 (5) + 1
 #        np.dot(rearr[:, start:end], np_weights, out=output[start])
         np.dot(rearr[start:start + 11].transpose(), np_weights, out=output[start])
-
+"""
 
 if __name__ == '__main__':
     fn = "/home/chamomile/Thyme-lab/data/vids/smart-dumb-run-fc2_save_2025-02-06-151144-0000.mp4"

@@ -28,7 +28,7 @@ import serial
 import pickle
 from tracker.roi_manip import convert_to_contours
 
-from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, setup as ssim_setup
+from structural_sim_from_scratch import correlate1d_x, correlate1d_y, correlate1d, run_math, setup as ssim_setup
 
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-6-25\\"
 
@@ -60,7 +60,9 @@ fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-6-25\\"
 #logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
 
 val = 30.0
-
+#def f8_alt(x):
+#    return "%14.9f" % x
+#pstats.f8 = f8_alt   
 
 class PoolRun:
     def __init__(self):
@@ -109,7 +111,7 @@ class PoolRun:
                     time = timer.now()
                     recording_queue.put([image, time])
 
-                """
+                
                 if img_queue.qsize() > 10:
                     time = timer.now()
                     print(img_queue.qsize(), time)
@@ -117,9 +119,9 @@ class PoolRun:
                         try:
                             img_queue.get()
                         except Exception as e:
-                            logger.error(e)
+                            print(e)
                             break
-                """
+                
                 img_queue.put(image)
                 if keyboard.is_pressed('q'):
                     done.set()
@@ -232,7 +234,7 @@ class PoolRun:
         C1 = (0.01 * data_range) ** 2 #K = 0.01
         C2 = (0.03 * data_range) ** 2 #K = 0.03
 
-        ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_HEIGHT,self.FRAME_WIDTH) # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
+        ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_WIDTH,self.FRAME_HEIGHT) # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
         
         weights = [0.00102838, 0.00759876, 0.03600077, 0.10936069, 0.21300554, 0.26601172,
                    0.21300554, 0.10936069, 0.03600077, 0.00759876, 0.00102838]        
@@ -241,7 +243,14 @@ class PoolRun:
 
         # instead treat it like going in the X direction instead
         ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT)
+        
+        diff = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
+        correlate1d_x(image, weights, uyy_tmp)  # , curr_scipy)
+        correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
+        
+        #pr = cProfile.Profile()
+        #pr.enable()
         while not done.is_set():
             try:
                 print(img_queue.qsize())
@@ -274,18 +283,19 @@ class PoolRun:
                     setup = True
                     
                     # we don't have to do this every time - will remain constant
-                    correlate1d_x(masked_mode_noblur_img, np_weights, uy_tmp)  # , curr_scipy)
-                    correlate1d_y(uy_tmp, np_weights, uy)  # , curr_scipy)
+                    correlate1d_x(masked_mode_noblur_img, weights, uy_tmp)  # , curr_scipy)
+                    correlate1d_y(uy_tmp, weights, uy)  # , curr_scipy)
                     
-                    correlate1d_x(masked_mode_noblur_img * masked_mode_noblur_img, np_weights, uyy_tmp)  # , curr_scipy)
-                    correlate1d_y(uyy_tmp, np_weights, uyy)  # , curr_scipy)
+                    correlate1d_x(masked_mode_noblur_img * masked_mode_noblur_img, weights, uyy_tmp)  # , curr_scipy)
+                    correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
                     uy_squared = uy * uy
                     vy = cov_norm * (uyy - uy_squared)
 
                 else:
+                    #pr = cProfile.Profile()
+                    #pr.enable()
+                    
                     time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
-                    pr = cProfile.Profile()
-                    pr.enable()
 
                     print(timer.now())
                     curr_img_gray = image.astype(np.float64, copy=False)
@@ -293,6 +303,7 @@ class PoolRun:
                     masked_curr_img = cv2.bitwise_and(
                         curr_img_gray, curr_img_gray, mask=contour_mask)
                     
+                    """
                     correlate1d_x(masked_curr_img, np_weights, ux_tmp)  # , curr_scipy)
                     correlate1d_y(ux_tmp, np_weights, ux)  # , curr_scipy)
                     
@@ -301,11 +312,20 @@ class PoolRun:
                     
                     correlate1d_x(masked_mode_noblur_img * masked_curr_img, np_weights, uxy_tmp)  # , curr_scipy)
                     correlate1d_y(uxy_tmp, np_weights, uxy)  # , curr_scipy)
-
-            
-                    diff = run_math(cov_norm, 255, ux, uy, uxx, uyy, uxy)
+                    """
                     
-                    diff = diff.transpose()
+                    correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
+                    correlate1d_y(ux_tmp, weights, ux)  # , curr_scipy)
+                    
+                    correlate1d_x(masked_curr_img * masked_curr_img, weights, uxx_tmp)  # , curr_scipy)
+                    correlate1d_y(uxx_tmp, weights, uxx)  # , curr_scipy)
+                    
+                    correlate1d_x(masked_mode_noblur_img * masked_curr_img, weights, uxy_tmp)  # , curr_scipy)
+                    correlate1d_y(uxy_tmp, weights, uxy)  # , curr_scipy)
+                    
+                    diff = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
+                    
+                    #diff = diff.transpose()
             #        _, str_sim_diff = structural_similarity(curr_img_gray, self.masked_mode_noblur_img, full=True)
                     
                     #cv2.imshow('curr in find', curr_img_gray)
@@ -324,15 +344,7 @@ class PoolRun:
                     #r.run_CV(frame_counter, time_)
 
                     #cv2.imshow('im', r.curr_img_data)
-                    print(timer.now())
 
-                    pr.disable()
-                    s = io.StringIO()
-                    sortby = SortKey.CUMULATIVE
-                    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-                    ps.print_stats()
-                    print(s.getvalue())
-                    
                 """
                 elif gui.contour_overlay:
                     if gui.contours_updated:
@@ -368,14 +380,32 @@ class PoolRun:
                 """
 
                 frame_counter += 1
-
+                #print(timer.now())
+        
+                #pr.disable()
+                #s = io.StringIO()
+                #sortby = SortKey.CUMULATIVE
+                #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                #ps.print_stats()
+                #print(s.getvalue())
 
             except Exception as e:
                 print(e)
                 #logger.error(f"gui failed because: {e}")
                 #logger.error(gc.get_stats())
+            
+        """
+        print(timer.now())
 
-        dpg.destroy_context()
+        pr.disable()
+        s = io.StringIO()
+        sortby = SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
+        """
+                    #
+        #dpg.destroy_context()
 
 
     #    @profile
