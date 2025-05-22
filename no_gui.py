@@ -27,10 +27,14 @@ import serial
 
 import pickle
 from tracker.roi_manip import convert_to_contours
+from tracker.helpers.centroid_manip import find_centroid_of_contour, check_masked_image, generate_row_col
 
 from structural_sim_from_scratch import correlate1d_x, correlate1d_y, correlate1d, run_math, setup as ssim_setup
 from scipy.ndimage import correlate1d as correlate1d_scipy
 from skimage.metrics import structural_similarity
+import math
+
+import os
 
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-6-25\\"
 
@@ -116,7 +120,7 @@ class PoolRun:
                 
                 if img_queue.qsize() > 10:
                     time = timer.now()
-                    print(img_queue.qsize(), time)
+                    #print(img_queue.qsize(), time)
                     while img_queue.qsize() > 2:
                         try:
                             img_queue.get()
@@ -243,7 +247,6 @@ class PoolRun:
         
         np_weights = np.asarray(weights)
 
-        # instead treat it like going in the X direction instead
         ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT)
         
         diff = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
@@ -251,8 +254,13 @@ class PoolRun:
         correlate1d_x(image, weights, uyy_tmp)  # , curr_scipy)
         correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
         
+        detected_centroids = []
         #pr = cProfile.Profile()
         #pr.enable()
+        
+        FRAMES_TO_SAVE_AFTER = 100
+        output_filepath =  f'{fn_start}pre-processed.csv'
+        
         while not done.is_set():
             try:
                 print(img_queue.qsize())
@@ -260,8 +268,8 @@ class PoolRun:
                 image = img_queue.get()
                 image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
-                if cv2.waitKey(1) == 1:
-                    break
+                #if cv2.waitKey(1) == 1:
+                #    break
 
                 r.curr_img = image
                 r.curr_img_data = image_data
@@ -271,10 +279,8 @@ class PoolRun:
                 elif not setup:
                     r.mask = contour_mask#.astype(np.float64, copy=False)
                     r.mode_noblur_img = r.mode_noblur_img.astype(np.float64, copy=False)
-                    print(r.mask.shape, r.mode_noblur_img.shape)
                     masked_mode_noblur_img = cv2.bitwise_and(
                         r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
-                    print(r.mode_noblur_img.dtype)
                     r.masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
                     masked_mode_noblur_img = r.masked_mode_noblur_img
                     setup = True
@@ -293,73 +299,81 @@ class PoolRun:
                     #pr = cProfile.Profile()
                     #pr.enable()
                     
-                    time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
+                    time = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
 
-                    print(timer.now())
+                    #print(timer.now())
 
                     #image = image.astype(np.float64, copy=False)
                     masked_curr_img = cv2.bitwise_and(
                         image, image, mask=contour_mask)
                     masked_curr_img = masked_curr_img.astype(np.float64, copy=False)
 
-
-                    """
-                    correlate1d_x(masked_curr_img, np_weights, ux_tmp)  # , curr_scipy)
-                    correlate1d_y(ux_tmp, np_weights, ux)  # , curr_scipy)
-                    
-                    correlate1d_x(masked_curr_img * masked_curr_img, np_weights, uxx_tmp)  # , curr_scipy)
-                    correlate1d_y(uxx_tmp, np_weights, uxx)  # , curr_scipy)
-                    
-                    correlate1d_x(masked_mode_noblur_img * masked_curr_img, np_weights, uxy_tmp)  # , curr_scipy)
-                    correlate1d_y(uxy_tmp, np_weights, uxy)  # , curr_scipy)
-                    """
-                
-                    cv2.imshow('mode', masked_mode_noblur_img)
-                    cv2.imshow('curr', masked_curr_img)
-                   # print(mode_noblur_img.shape, mode_noblur_img.dtype, image.shape, image.dtype)
-
-                    #correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
                     correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
                     correlate1d_y(ux_tmp, weights, ux)  # , curr_scipy)
 
-                    #correlate1d_x(masked_curr_img * masked_curr_img, weights, uxx_tmp)  # , curr_scipy)
                     correlate1d_x(masked_curr_img * masked_curr_img, weights, uxx_tmp)  # , curr_scipy)
                     correlate1d_y(uxx_tmp, weights, uxx)  # , curr_scipy)
                     
-                    #correlate1d_x(r.mode_noblur_img * masked_curr_img, weights, uxy_tmp)  # , curr_scipy)
                     correlate1d_x(masked_curr_img * masked_mode_noblur_img, weights, uxy_tmp)  # , curr_scipy)
-                    #print(correlate1d_scipy(mode_noblur_img * image, np_weights, axis=0), uxy_tmp)
-
                     correlate1d_y(uxy_tmp, weights, uxy)  # , curr_scipy)
                     
                     #print(ux, uy, uxx, uyy, uxy, )
-                    S = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
-
-                    xs, ys = np.where(r.mask == 0)
+                    diff = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
+                                    
+                    diff[diff > 1] = 1
+                    diff[diff < 0] = 0
                     
-                    for i in range(len(xs)):
-                        if masked_mode_noblur_img[xs[i]][ys[i]] != 0.0 or masked_curr_img[xs[i]][ys[i]] != 0.0:
-                            print(masked_mode_noblur_img[xs[i]][ys[i]], masked_curr_img[xs[i]][ys[i]])
-                    #diff = diff.transpose()
-            #        _, str_sim_diff = structural_similarity(curr_img_gray, self.masked_mode_noblur_img, full=True)
-                    
-                    #cv2.imshow('curr in find', curr_img_gray)
-                    diff = (S * 255).astype("uint8")
-            
-                    cv2.imshow('diff', diff)
+                    diff *= 255
+                    diff = diff.astype("uint8")
+   
+                    """
+                    # interesting idea but not for right now
+                    if len(diff[diff<0]) > 0:
+                        diff += abs(diff.min())
+                    diff *= 255/diff.max()
+                    diff = diff.astype("uint8")"
+                    """
 
+                    #cv2.imshow('diff', diff)
                     thresh_img = cv2.threshold(diff, 155, 255, cv2.THRESH_BINARY)[1]
                     contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                     contours = contours[0] if len(contours) == 2 else contours[1]
-                
-                #    cv2.drawContours(diff, contours, -1, (0,255,0), 1)
-                    #contours = [c for c in contours if self.gui.contour_definer.centroid_size < cv2.contourArea(c) < 500000]
-                    contours = [c for c in contours if 70 < cv2.contourArea(c) < 500000]
+                    #print("len contours", len(contours))
+
+                    sorted_contours = sort_contours_by_area(contours, frame_counter, time, diff, r.mask, shape_of_rows, cell_contours, cell_centers)
                     
+                    detected_centroids.extend(sorted_contours)
+                    #print(sorted_contours)
+                    #for time, frame_count, row, col, x, y in sorted_contours:
+                    #    cv2.circle(image_data, (x, y), 1, (0, 0, 255), 5, cv2.LINE_4)
+                    #cv2.drawContours(image_data, contours, -1, (0,255,0), 1)
+
+                    #cv2.imshow('data', image_data)
+
                     #r.run_CV(frame_counter, time_)
 
                     #cv2.imshow('im', r.curr_img_data)
-
+                    
+                    if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(detected_centroids) > 0:
+                        print("saving")
+                        if not os.path.exists(output_filepath):
+                            new = pd.DataFrame(np.matrix(detected_centroids),
+                                               columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
+                            new.to_csv(output_filepath, sep=',', index=False)
+                        else:
+                            new = pd.DataFrame(np.matrix(detected_centroids),
+                                               columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
+                            new.to_csv(output_filepath, sep=',', mode='a', index=False, header=False)
+                            detected_centroids.clear()
+                    
+                    
+                    #pr.disable()
+                    #s = io.StringIO()
+                    #sortby = SortKey.CUMULATIVE
+                    #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                    #ps.print_stats()
+                    #print(s.getvalue())
+                    
                 """
                 elif gui.contour_overlay:
                     if gui.contours_updated:
@@ -497,6 +511,54 @@ class PoolRun:
 
         done.set()
 
+
+def sort_contours_by_area(contours, frame_count, time, diff, mask, shape_of_rows, cell_contours, cell_centers):
+    # darkest_pixel_val = 255
+    posns = [[[] for j in range(shape_of_rows[i])] for i in
+             range(len(shape_of_rows))]
+
+    sorted_contours = []
+    
+    #print(shape_of_rows)
+    for c in contours:
+        # we want to make sure that each contour we find is in a masked section of the image (i.e. relevant because it's in
+        # a well, and that we know which one it is in)
+        
+        # contours = [c for c in contours if self.gui.contour_definer.centroid_size < cv2.contourArea(c) < 500000]
+        if 50 < cv2.contourArea(c) < 500000:
+            x, y, w, h = cv2.boundingRect(c)
+    
+            point_x, point_y = (int(x + w / 2), int(y + h / 2))  # not as exact as find_centroid_of_contour, but faster
+    
+            if not check_masked_image((point_x, point_y), mask):
+                for row, col in generate_row_col(shape_of_rows):
+                    if math.dist(cell_centers[row][col], (point_x, point_y)) < 50:
+                        cell_count = row * shape_of_rows[row] + col
+    
+                        in_polygon = cv2.pointPolygonTest(cell_contours[cell_count], (point_x, point_y),
+                                                          False)
+                        #print(in_polygon)
+                        if in_polygon >= 0:
+                            #print(diff_box)
+                            #R, G, B, _ = np.array(cv2.mean(diff_box[y:y + h, x:x + w]), np.uint8)
+                            n = cv2.mean(diff[y:y + h, x:x + w])[0]
+                            #gray_avg = 0.299 * R + 0.587 * G + 0.114 * B
+                            #print(R, G, B, n, gray_avg)
+                            posns[row][col].append(((point_x, point_y), n))
+        
+                            break
+                            # if gray_avg < darkest_pixel_val:
+                            #   darkest_pixel_val = gray_avg
+
+    for row, col in generate_row_col(shape_of_rows):
+        ten_darkest_centroids = sorted(posns[row][col], key=lambda posn: posn[1])[:10]
+        if len(ten_darkest_centroids) > 0:
+            sorted_contours.append(
+                [time, frame_count, row, col, ten_darkest_centroids[0][0][0], ten_darkest_centroids[0][0][1]])
+
+            # for c in ten_darkest_centroids:
+            #    all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
+    return sorted_contours
 
 if __name__ == '__main__':
     poolrun = PoolRun()
