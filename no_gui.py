@@ -29,6 +29,8 @@ import pickle
 from tracker.roi_manip import convert_to_contours
 
 from structural_sim_from_scratch import correlate1d_x, correlate1d_y, correlate1d, run_math, setup as ssim_setup
+from scipy.ndimage import correlate1d as correlate1d_scipy
+from skimage.metrics import structural_similarity
 
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-6-25\\"
 
@@ -267,22 +269,18 @@ class PoolRun:
                 if r.mode_noblur_img is None:
                     r.find_mode(frame_counter)
                 elif not setup:
-                    #contour_mask = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH, 3))
-                    #for c in cell_contours:
-                    #    non_int = np.array(c)
-                    #    contour_mask = cv2.drawContours(contour_mask, [non_int],
-                    #                                    -1, (255, 255, 255), thickness=cv2.FILLED)
-                        
-
-                    r.mask = contour_mask
+                    r.mask = contour_mask#.astype(np.float64, copy=False)
+                    r.mode_noblur_img = r.mode_noblur_img.astype(np.float64, copy=False)
+                    print(r.mask.shape, r.mode_noblur_img.shape)
                     masked_mode_noblur_img = cv2.bitwise_and(
                         r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
-                    
+                    print(r.mode_noblur_img.dtype)
                     r.masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
                     masked_mode_noblur_img = r.masked_mode_noblur_img
                     setup = True
                     
                     # we don't have to do this every time - will remain constant
+                    #correlate1d_x(masked_mode_noblur_img, weights, uy_tmp)  # , curr_scipy)
                     correlate1d_x(masked_mode_noblur_img, weights, uy_tmp)  # , curr_scipy)
                     correlate1d_y(uy_tmp, weights, uy)  # , curr_scipy)
                     
@@ -298,11 +296,13 @@ class PoolRun:
                     time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
 
                     print(timer.now())
-                    curr_img_gray = image.astype(np.float64, copy=False)
 
+                    #image = image.astype(np.float64, copy=False)
                     masked_curr_img = cv2.bitwise_and(
-                        curr_img_gray, curr_img_gray, mask=contour_mask)
-                    
+                        image, image, mask=contour_mask)
+                    masked_curr_img = masked_curr_img.astype(np.float64, copy=False)
+
+
                     """
                     correlate1d_x(masked_curr_img, np_weights, ux_tmp)  # , curr_scipy)
                     correlate1d_y(ux_tmp, np_weights, ux)  # , curr_scipy)
@@ -313,26 +313,41 @@ class PoolRun:
                     correlate1d_x(masked_mode_noblur_img * masked_curr_img, np_weights, uxy_tmp)  # , curr_scipy)
                     correlate1d_y(uxy_tmp, np_weights, uxy)  # , curr_scipy)
                     """
-                    
+                
+                    cv2.imshow('mode', masked_mode_noblur_img)
+                    cv2.imshow('curr', masked_curr_img)
+                   # print(mode_noblur_img.shape, mode_noblur_img.dtype, image.shape, image.dtype)
+
+                    #correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
                     correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
                     correlate1d_y(ux_tmp, weights, ux)  # , curr_scipy)
-                    
+
+                    #correlate1d_x(masked_curr_img * masked_curr_img, weights, uxx_tmp)  # , curr_scipy)
                     correlate1d_x(masked_curr_img * masked_curr_img, weights, uxx_tmp)  # , curr_scipy)
                     correlate1d_y(uxx_tmp, weights, uxx)  # , curr_scipy)
                     
-                    correlate1d_x(masked_mode_noblur_img * masked_curr_img, weights, uxy_tmp)  # , curr_scipy)
+                    #correlate1d_x(r.mode_noblur_img * masked_curr_img, weights, uxy_tmp)  # , curr_scipy)
+                    correlate1d_x(masked_curr_img * masked_mode_noblur_img, weights, uxy_tmp)  # , curr_scipy)
+                    #print(correlate1d_scipy(mode_noblur_img * image, np_weights, axis=0), uxy_tmp)
+
                     correlate1d_y(uxy_tmp, weights, uxy)  # , curr_scipy)
                     
-                    diff = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
+                    #print(ux, uy, uxx, uyy, uxy, )
+                    S = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
+
+                    xs, ys = np.where(r.mask == 0)
                     
+                    for i in range(len(xs)):
+                        if masked_mode_noblur_img[xs[i]][ys[i]] != 0.0 or masked_curr_img[xs[i]][ys[i]] != 0.0:
+                            print(masked_mode_noblur_img[xs[i]][ys[i]], masked_curr_img[xs[i]][ys[i]])
                     #diff = diff.transpose()
             #        _, str_sim_diff = structural_similarity(curr_img_gray, self.masked_mode_noblur_img, full=True)
                     
                     #cv2.imshow('curr in find', curr_img_gray)
-                    diff = (diff * 255).astype("uint8")
+                    diff = (S * 255).astype("uint8")
             
                     cv2.imshow('diff', diff)
-                    
+
                     thresh_img = cv2.threshold(diff, 155, 255, cv2.THRESH_BINARY)[1]
                     contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                     contours = contours[0] if len(contours) == 2 else contours[1]
