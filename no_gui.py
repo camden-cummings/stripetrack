@@ -36,9 +36,9 @@ import math
 
 import os
 
-fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-6-25\\"
+fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-22-25\\"
 
-#import logging
+import logging
 
 # create logger
 #mem_logger = logging.getLogger('memory_profile_log')
@@ -62,8 +62,8 @@ fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-6-25\\"
 
 # from memory_profiler import profile
 
-#logger = logging.getLogger(__name__)
-#logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
 
 val = 30.0
 #def f8_alt(x):
@@ -112,8 +112,9 @@ class PoolRun:
                     node_fps.SetValue(fps)
 
                 image = get_image(cam)
-
-                if node_fps.GetValue() == val or node_fps.GetValue() == 285.0:
+                
+                fps = node_fps.GetValue()
+                if fps == val or fps == 285.0:
                     time = timer.now()
                     recording_queue.put([image, time])
 
@@ -125,7 +126,7 @@ class PoolRun:
                         try:
                             img_queue.get()
                         except Exception as e:
-                            print(e)
+                            logger.info(e)
                             break
                 
                 img_queue.put(image)
@@ -138,9 +139,9 @@ class PoolRun:
             cam.DeInit()
 
         except Exception as ex:
-            print(ex)
-            # logger.error(f'Error: {ex}')
-            # logger.error(gc.get_stats())
+            #print(ex)
+            logger.error(f'Error: {ex}')
+            logger.error(gc.get_stats())
 
         # Release reference to camera
         # NOTE: Unlike the C++ examples, we cannot rely on pointer objects being automatically
@@ -194,14 +195,14 @@ class PoolRun:
             #                    logger.info(str(counter))
 
             except Exception as e:
-                print(e)
-                #logger.error(f"video recorder failed at: {e}")
-                #logger.error(gc.get_stats())
+                #print(e)
+                logger.error(f"video recorder failed at: {e}")
+                logger.error(gc.get_stats())
 
     #  @profile
 
     def gui_pool(self, img_queue, done, start_recording):
-        #logger.info("start gui pool")
+        logger.info("start gui pool")
         #dpg.create_context()
         #window = dpg.add_window(label="Video player", pos=(50, 50), width=self.FRAME_WIDTH, height=self.FRAME_HEIGHT)
         #gui = GUIHelpers(window, self.FRAME_WIDTH, self.FRAME_HEIGHT)
@@ -215,13 +216,13 @@ class PoolRun:
         #dpg.show_viewport()
         #with open(f"{fn_start}\\zebrafish-tracker-full-restart.cells", 'rb') as filename:
         #    cell_contours = pickle.load(filename)
-        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker-full-restart.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
+        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker-5-22-25-realrun.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
         r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', cell_contours, shape_of_rows)
            
         # just for testing
         image = img_queue.get()
-        r.mode_noblur_img=image
+        #r.mode_noblur_img=image
         # --------------------------------------
         frame_counter = 0
 
@@ -258,12 +259,12 @@ class PoolRun:
         #pr = cProfile.Profile()
         #pr.enable()
         
-        FRAMES_TO_SAVE_AFTER = 100
+        FRAMES_TO_SAVE_AFTER = 1800
         output_filepath =  f'{fn_start}pre-processed.csv'
         
         while not done.is_set():
             try:
-                print(img_queue.qsize())
+                logger.info(img_queue.qsize())
 
                 image = img_queue.get()
                 image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
@@ -344,8 +345,8 @@ class PoolRun:
                     
                     detected_centroids.extend(sorted_contours)
                     #print(sorted_contours)
-                    #for time, frame_count, row, col, x, y in sorted_contours:
-                    #    cv2.circle(image_data, (x, y), 1, (0, 0, 255), 5, cv2.LINE_4)
+                    for time, frame_count, row, col, x, y in sorted_contours:
+                        cv2.circle(image_data, (x, y), 1, (0, 0, 255), 5, cv2.LINE_4)
                     #cv2.drawContours(image_data, contours, -1, (0,255,0), 1)
 
                     #cv2.imshow('data', image_data)
@@ -355,12 +356,13 @@ class PoolRun:
                     #cv2.imshow('im', r.curr_img_data)
                     
                     if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(detected_centroids) > 0:
-                        print("saving")
+                        #print("saving")
                         if not os.path.exists(output_filepath):
                             new = pd.DataFrame(np.matrix(detected_centroids),
                                                columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
                             new.to_csv(output_filepath, sep=',', index=False)
                         else:
+                            #print('adding on')
                             new = pd.DataFrame(np.matrix(detected_centroids),
                                                columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
                             new.to_csv(output_filepath, sep=',', mode='a', index=False, header=False)
@@ -419,9 +421,9 @@ class PoolRun:
                 #print(s.getvalue())
 
             except Exception as e:
-                print(e)
-                #logger.error(f"gui failed because: {e}")
-                #logger.error(gc.get_stats())
+                #print(e)
+                logger.error(f"gui failed because: {e}")
+                logger.error(gc.get_stats())
             
         """
         print(timer.now())
@@ -454,8 +456,8 @@ class PoolRun:
                 if first_time:  # setup all necessary pieces
                     at_time, command_string, type_of_video = process_command_string(
                         schedule_times.iloc[counter])
-                    #logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
-                    print(f"COMMANDS: {at_time} {command_string} {type_of_video}")
+                    logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
+                    #print(f"COMMANDS: {at_time} {command_string} {type_of_video}")
                     if type_of_video == 0:
                         duration = 0
                     elif type_of_video == 1:
@@ -469,8 +471,8 @@ class PoolRun:
                         [curr_time[i] * j[i] for i in range(len(at_time))])
 
                     if abs(diff) > 120:
-                        #logger.info("sending val to fps")
-                        print("sending val to fps")
+                        logger.info("sending val to fps")
+                        #print("sending val to fps")
                         fps_commands.send(val)
 
                     recording_commands.send([duration, at_time, type_of_video, counter])
@@ -483,12 +485,12 @@ class PoolRun:
                     if end_time == np.inf:
                         if duration != 0:
                             if type_of_video == 1:
-                                #logger.info("sending 285.0")
-                                print("sending 285.0")
+                                logger.info("sending 285.0")
+                                #print("sending 285.0")
                                 fps_commands.send(285.0)
                             else:
-                                #logger.info(f"sending {val}")
-                                print(f"sending {val}")
+                                logger.info(f"sending {val}")
+                                #print(f"sending {val}")
                                 fps_commands.send(val)
 
                         start_time = int(timer.now())
@@ -504,10 +506,10 @@ class PoolRun:
 
             except Exception as e:
                 # print(e)
-                #logger.error(f"timer failed because: {e}")
-                #logger.error(gc.get_stats())
-                print(f"timer failed because: {e}")
-                print(gc.get_stats())
+                logger.error(f"timer failed because: {e}")
+                logger.error(gc.get_stats())
+                #print(f"timer failed because: {e}")
+                #print(gc.get_stats())
 
         done.set()
 
