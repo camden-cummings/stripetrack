@@ -28,6 +28,7 @@ def setup(frame_width, frame_height):
 
 
 # @nb.guvectorize([(float64, int64, float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:])], '(),(),(m,n),(m,n),(m,n),(m,n),(m,n)->(m,n)', nopython=True, target='cuda')
+"""
 @nb.njit(parallel=True, fastmath=True)
 def run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy):
     ux_squared = ux * ux
@@ -47,7 +48,25 @@ def run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy):
     )
 
     return (A1 * A2) / (B1 * B2)
+"""
 
+@nb.njit(parallel=True, fastmath=True)
+def run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy):
+    ux_squared = np.multiply(ux, ux)
+    uy_squared = np.multiply(uy, uy)
+    ux_uy = np.multiply(ux, uy)
+    vx = np.multiply(cov_norm, (uxx-ux_squared))
+    vxy = np.multiply(cov_norm, (uxy - ux_uy))
+
+    C1 = (0.01 * data_range) ** 2
+    C2 = (0.03 * data_range) ** 2
+
+    A1 = np.multiply(ux_uy,2) + C1
+    A2 = np.multiply(vxy,2) + C2
+    B1 = ux_squared + uy_squared + C1
+    B2 = vx + vy + C2
+
+    return (A1 * A2) / (B1 * B2)
 
 #@nb.guvectorize([(float64, int64, float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:])], '(),(),(m,n),(m,n),(m,n),(m,n),(m,n)->(m,n)', nopython=True, target='cuda')
 @nb.njit(parallel=True, fastmath=True)
