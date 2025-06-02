@@ -8,15 +8,11 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from AcquireAndDisplayClass import get_image
-from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode
-#from gui_helpers import GUIHelpers
+from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
 
 from precise_time import PreciseTime
-#from tracker.str_sim_run import shape_of_rows
 
 from vid import RunCV, process_command_string
-#import queue
 
 import gc
 
@@ -25,13 +21,11 @@ import pandas as pd
 import keyboard
 import serial
 
-import pickle
 from tracker.roi_manip import convert_to_contours
-from tracker.helpers.centroid_manip import find_centroid_of_contour, check_masked_image, generate_row_col
+from tracker.helpers.centroid_manip import check_masked_image, generate_row_col
 
-from structural_sim_from_scratch import correlate1d_x, correlate1d_y, correlate1d, run_math, setup as ssim_setup
-from scipy.ndimage import correlate1d as correlate1d_scipy
-from skimage.metrics import structural_similarity
+from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, setup as ssim_setup
+
 import math
 
 import os

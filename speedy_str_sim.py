@@ -19,35 +19,6 @@ from structural_sim_from_scratch import setup, generate_weights#, correlate1d_x,
 #from numba import int64, float64
 from scipy import ndimage as ndi
 from numbers import Integral
-import copy
-
-def structural_similarity_diff(
-        im1,
-        im2,
-        data_range,
-        weights,
-        cov_norm):
-
-    # ndimage filters need floating point data
-    im1 = im1.astype(np.float64, copy=False)
-    im2 = im2.astype(np.float64, copy=False)
-
-    frame_width, frame_height = 1200, 1760
-    ux = np.zeros((frame_width, frame_height))
-    uy = np.zeros((frame_width, frame_height))
-    uxx = np.zeros((frame_width, frame_height))
-    uyy = np.zeros((frame_width, frame_height))
-    uxy = np.zeros((frame_width, frame_height))
-    #r = np.zeros((frame_width, frame_height))
-
-    #correlate1d(im1, weights, ux)
-    #correlate1d(im2, weights, uy)
-
-    #correlate1d(im1 * im1, weights, uxx)
-    #correlate1d(im2 * im2, weights, uyy)
-    #correlate1d(im1 * im2, weights, uxy)
-
-    return run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy, )
 
 def crop(ar, crop_width, copy=False, order='K'):
     """Crop array `ar` by `crop_width` along each dimension.

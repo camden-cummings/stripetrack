@@ -9,8 +9,7 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from AcquireAndDisplayClass import get_image
-from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode
+from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
 from gui_helpers import GUIHelpers
 
 from precise_time import PreciseTime
