@@ -36,7 +36,7 @@ import math
 
 import os
 
-fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-22-25\\"
+fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-30-25\\"
 
 import logging
 
@@ -106,6 +106,8 @@ class PoolRun:
             cam.BeginAcquisition()
 
             recording = False
+            count = 0
+            count_mod = 9
             while not done.is_set():
                 if fps_commands.poll():
                     fps = float(fps_commands.recv())
@@ -129,7 +131,17 @@ class PoolRun:
                             logger.info(e)
                             break
                 
-                img_queue.put(image)
+                if fps == 285.0 and count == count_mod:
+                    img_queue.put(image)
+                    count += 1
+                    
+                    if count_mod == 9:
+                        count_mod = 10
+                    else:
+                        count_mod = 9
+                else:    
+                    img_queue.put(image)
+                    
                 if keyboard.is_pressed('q'):
                     done.set()
 
