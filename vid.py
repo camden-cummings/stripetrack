@@ -36,7 +36,7 @@ FRAMES_TO_SAVE_AFTER = 100
 pre_output_filepath = 'pre-processed.csv'
 
 class RunCV:
-    def __init__(self, FRAME_WIDTH, FRAME_HEIGHT, output_filepath, cell_contours, shape_of_rows):
+    def __init__(self, FRAME_WIDTH, FRAME_HEIGHT, output_filepath, cell_contours, cell_centers, shape_of_rows):
         self.async_result = None
 
         self.mode_noblur_img = None
@@ -51,6 +51,7 @@ class RunCV:
         self.output_filepath = output_filepath
         self.movie_deq = []
         self.cell_contours = cell_contours
+        self.cell_centers = cell_centers
         self.shape_of_rows = shape_of_rows
         
         self.ux_tmp, self.uy_tmp, self.uxx_tmp, self.uyy_tmp, self.uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT)
@@ -91,261 +92,56 @@ class RunCV:
             #self.gui.mode_calculated = True
             #self.gui.rt_tracker.standard_image_noise = self.gui.rt_tracker.CV_image_noise_light_background(self.mode_noblur_img)
             #dpg.configure_item(self.gui.status, default_value="Status: Ready")
-        
-    def run_CV(self, frame_counter, time):
-        if self.mask is not None:
-            """
-            match self.gui.contour_definer.cv_method:
-                case "Structural Similarity":  
-                    #str_pr = cProfile.Profile()
-                    #str_pr.enable()
 
-                    #str_pr.disable()
-                    #s = io.StringIO()
-                    #sortby = SortKey.CUMULATIVE
-                    #ps = pstats.Stats(str_pr, stream=s).sort_stats(sortby)
-                    #ps.print_stats()
-                    #print(s.getvalue())
-                    
-                case "Real Time":
-                    # TODO flesh out or remove
-                    pass
-            """
-            start_frame = 0
-
-            masked_curr_img = cv2.bitwise_and(
-                self.curr_img, self.curr_img, mask=self.mask)
-            contours, diff = self.find_centroids(masked_curr_img)
-            
-            
-            cv2.drawContours(self.curr_img_data, contours, -1, (0,255,0), 1)
-            sorted_contours = self.sort_contours_by_area(contours, frame_counter, time, diff)
-            self.detected_centroids.extend(sorted_contours)
-
-            #if gui.show_only_inside_contours:
-            #    for i in sorted_contours:
-            #        cv2.circle(self.curr_img_data, (i[4], i[5]), 1, (0, 255, 0), 1)
-            #else:
-            #for i in contours:
-                #center = find_centroid_of_contour(i)
-                #cv2.circle(self.curr_img_data, center, 1, (0, 255, 0), 1)
-            
-                    
-            
-            if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(self.detected_centroids) > 0:
-                print("saving")
-                if start_frame == 0:
-                    new = pd.DataFrame(np.matrix(self.detected_centroids),
-                                       columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
-                    new.to_csv(self.output_filepath, sep=',', index=False)
-                else:
-                    new = pd.DataFrame(np.matrix(self.detected_centroids),
-                                       columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
-                    new.to_csv(self.output_filepath, sep=',', mode='a', index=False, header=False)
-                    self.detected_centroids.clear()
-    
-"""
-    def find_centroids(self, curr_img_gray):    
-        # ndimage filters need floating point data
-        curr_img_gray = curr_img_gray.astype(np.float64, copy=False)
-"""
-"""
-        correlate1d_x(curr_img_gray, weights, self.ux_tmp)
-        correlate1d_y(self.ux_tmp, weights, self.ux)
-
-        correlate1d_x(self.masked_mode_noblur_img, weights, self.uy_tmp)
-        correlate1d_y(self.uy_tmp, weights, self.uy)
-    
-        correlate1d_x(curr_img_gray * curr_img_gray, weights, self.uxx_tmp)
-        correlate1d_y(self.uxx_tmp, weights, self.uxx)#, mode_scipy)
-
-        correlate1d_x(self.masked_mode_noblur_img * self.masked_mode_noblur_img, weights, self.uyy_tmp)
-        correlate1d_y(self.uyy_tmp, weights, self.uyy)#, mode_scipy)
-
-        correlate1d_x(curr_img_gray * self.masked_mode_noblur_img, weights, self.uxy_tmp)
-        correlate1d_y(self.uxy_tmp, weights, self.uxy)#, mode_scipy)
-"""
-"""
-        rearr = np.concatenate((curr_img_gray[0:self.size1][::-1], curr_img_gray, curr_img_gray[-self.size2:][::-1]))
-
-        for start in range(self.FRAME_HEIGHT):  # could end early by checking that all vals in arr are the same in which case will be the value
-            # print(start)
-            end = start + self.size1 + self.size2 + 1
-            np.dot(rearr[start:end].transpose(), np_weights, out=self.ux_tmp[start])
-
-        rearr = np.concatenate((self.ux_tmp[:, 0:self.size1][:, ::-1], self.ux_tmp, self.ux_tmp[:, -self.size2:][:, ::-1]), axis=1)
-
-        for start in range(self.FRAME_WIDTH):
-            # print(start)
-            end = start + self.size1 + self.size2 + 1
-            np.dot(rearr[:, start:end], np_weights, out=self.ux[start])
-
-        rearr = np.concatenate((self.masked_mode_noblur_img[0:self.size1][::-1], self.masked_mode_noblur_img, self.masked_mode_noblur_img[-self.size2:][::-1]))
-
-        for start in range(self.FRAME_HEIGHT):  # could end early by checking that all vals in arr are the same in which case will be the value
-            # print(start)
-            end = start + self.size1 + self.size2 + 1
-            np.dot(rearr[start:end].transpose(), np_weights, out=self.uy_tmp[start])
-
-        rearr = np.concatenate((self.uy_tmp[:, 0:self.size1][:, ::-1], self.uy_tmp, self.uy_tmp[:, -self.size2:][:, ::-1]), axis=1)
-
-        for start in range(self.FRAME_WIDTH):
-            # print(start)
-            end = start + self.size1 + self.size2 + 1
-            np.dot(rearr[:, start:end], np_weights, out=self.uy[start])
-
-        inp = curr_img_gray * curr_img_gray
-        rearr = np.concatenate((inp[0:self.size1][::-1], inp, inp[-self.size2:][::-1]))
-
-        for start in range(self.FRAME_HEIGHT):  # could end early by checking that all vals in arr are the same in which case will be the value
-            # print(start)
-            end = start + self.size1 + self.size2 + 1
-            np.dot(rearr[start:end].transpose(), np_weights, out=self.uxx_tmp[start])
-
-        #correlate1d_y(uxx_tmp, weights, uxx)#, mode_scipy)
-
-        rearr = np.concatenate((self.uxx_tmp[:, 0:self.size1][:, ::-1], self.uxx_tmp, self.uxx_tmp[:, -self.size2:][:, ::-1]), axis=1)
-
-        for start in range(self.FRAME_WIDTH):
-            # print(start)
-            end = start + self.size1 + self.size2 + 1
-            np.dot(rearr[:, start:end], np_weights, out=self.uxx[start])
-
-        inp = self.masked_mode_noblur_img * self.masked_mode_noblur_img
-        rearr = np.concatenate((inp[0:self.size1][::-1], inp, inp[-self.size2:][::-1]))
-
-        for start in range(self.FRAME_HEIGHT):  # could end early by checking that all vals in arr are the same in which case will be the value
-            # print(start)
-            end = start + self.size1 + self.size2 + 1
-            np.dot(rearr[start:end].transpose(), np_weights, out=self.uyy_tmp[start])
-
-        rearr = np.concatenate((self.uyy_tmp[:, 0:self.size1][:, ::-1], self.uyy_tmp, self.uyy_tmp[:, -self.size2:][:, ::-1]), axis=1)
-
-        for start in range(self.FRAME_WIDTH):
-            # print(start)
-            end = start + self.size1 + self.size2 + 1
-            np.dot(rearr[:, start:end], np_weights, out=self.uyy[start])
-
-        inp = curr_img_gray * self.masked_mode_noblur_img
-        rearr = np.concatenate((inp[0:self.size1][::-1], inp, inp[-self.size2:][::-1]))
-
-        for start in range(self.FRAME_HEIGHT):  # could end early by checking that all vals in arr are the same in which case will be the value
-            # print(start)
-            end = start + self.size1 + self.size2 + 1
-            np.dot(rearr[start:end].transpose(), np_weights, out=self.uxy_tmp[start])
-
-        rearr = np.concatenate((self.uxy_tmp[:, 0:self.size1][:, ::-1], self.uxy_tmp, self.uxy_tmp[:, -self.size2:][:, ::-1]), axis=1)
-
-        for start in range(self.FRAME_WIDTH):
-            # print(start)
-            end = start + self.size1 + self.size2 + 1
-            np.dot(rearr[:, start:end], np_weights, out=self.uxy[start])
-
-        
-        diff = run_math(self.cov_norm, 255, self.ux, self.uy, self.uxx, self.uyy, self.uxy)
-
-#        _, str_sim_diff = structural_similarity(curr_img_gray, self.masked_mode_noblur_img, full=True)
-        
-        #cv2.imshow('curr in find', curr_img_gray)
-        diff = (diff * 255).astype("uint8")
-
-        #cv2.imshow('diff', diff)
-        
-
-        #cv2.imshow('masked mode noblur img', self.masked_mode_noblur_img)
-        #cv2.imshow('strsim', str_sim_diff)
-        
-        #thresh_img = cv2.threshold(diff, self.gui.contour_definer.thresh, 255, cv2.THRESH_BINARY)[1]
-
-        thresh_img = cv2.threshold(diff, 155, 255, cv2.THRESH_BINARY)[1]
-        contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        contours = contours[0] if len(contours) == 2 else contours[1]
-    
-    #    cv2.drawContours(diff, contours, -1, (0,255,0), 1)
-        #contours = [c for c in contours if self.gui.contour_definer.centroid_size < cv2.contourArea(c) < 500000]
-        contours = [c for c in contours if 70 < cv2.contourArea(c) < 500000]
-
-"""
-"""
-        for row, col in generate_row_col(shape_of_rows):
-            cell_count = row * shape_of_rows[row] + col
-    
-            #darkest_pixel_val = 255 
-            posns = []
-            for c in contours:
-                x, y, w, h = cv2.boundingRect(c)
-    
-                point_x, point_y = (int(x + w / 2), int(y + h / 2)) #not exact as find_centroid_of_contour, but faster
-    
-                in_polygon = cv2.pointPolygonTest(cell_contours[cell_count], (point_x, point_y), False)
-    
-                if in_polygon >= 0:
-                    R, G, B, _ = np.array(cv2.mean(diff_box[y:y + h, x:x + w])).astype(np.uint8)
-                    gray_avg = 0.299 * R + 0.587 * G + 0.114 * B
-    
-                    posns.append(((point_x, point_y), gray_avg))
-    
-                    #if gray_avg < darkest_pixel_val:
-                    #    darkest_pixel_val = gray_avg
-    
-            ten_darkest_centroids = sorted(posns, key=lambda posn: posn[1])[:10]
-    
-            if len(ten_darkest_centroids) > 0:
-                all_centr_in_frame.append([frame_count, row, col, ten_darkest_centroids[0][0][0], ten_darkest_centroids[0][0][1]])
-            #for c in ten_darkest_centroids:
-            #    all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
-"""
-"""
-        return contours, diff
-"""
-"""
-    def sort_contours_by_area(self, contours, frame_count, time, diff):
+    def sort_contours_by_area(self, contours, frame_count, time, diff, min_centroid_size, max_centroid_size):  # TODO put this back into runcv -- but want to check that it makes sense first
+        #min_centroid_size // self.gui.contour_definer.centroid_size
+        #max_centroid_size // 500000
         # darkest_pixel_val = 255
         posns = [[[] for j in range(self.shape_of_rows[i])] for i in
                  range(len(self.shape_of_rows))]
-
+        last_confident_centroid = [[self.cell_centers[row][col] for col in range(self.shape_of_rows[row])] for row in
+                                   range(len(self.shape_of_rows))]
         sorted_contours = []
-        
-#        diff_box = cv2.merge([diff, diff, diff])
 
+        # print(shape_of_rows)
         for c in contours:
             # we want to make sure that each contour we find is in a masked section of the image (i.e. relevant because it's in
             # a well, and that we know which one it is in)
 
-            x, y, w, h = cv2.boundingRect(c)
+            contours = [c for c in contours if min_centroid_size < cv2.contourArea(c) < max_centroid_size]
+            if 50 < cv2.contourArea(c) < 500000:
+                x, y, w, h = cv2.boundingRect(c)
 
-            point_x, point_y = (int(x + w / 2), int(y + h / 2))  # not as exact as find_centroid_of_contour, but faster
+                point_x, point_y = (int(x + w / 2),
+                                    int(y + h / 2))  # not as exact as find_centroid_of_contour, but faster
 
-            if not check_masked_image((point_x, point_y), self.mask):
-                for row, col in generate_row_col(self.shape_of_rows):
-                    cell_count = row * self.shape_of_rows[row] + col
+                if not check_masked_image((point_x, point_y), self.mask):
+                    for row, col in generate_row_col(self.shape_of_rows):
+                        if math.dist(self.cell_centers[row][col], (point_x, point_y)) < 50:
+                            cell_count = row * self.shape_of_rows[row] + col
 
-                    in_polygon = cv2.pointPolygonTest(self.cell_contours[cell_count], (point_x, point_y),
-                                                      False)
-                    #print(in_polygon)
-                    if in_polygon >= 0:
-                        #print(diff_box)
-                        #R, G, B, _ = np.array(cv2.mean(diff_box[y:y + h, x:x + w]), np.uint8)
-                        n = cv2.mean(diff[y:y + h, x:x + w])[0]
-                        #gray_avg = 0.299 * R + 0.587 * G + 0.114 * B
-                        #print(R, G, B, n, gray_avg)
+                            in_polygon = cv2.pointPolygonTest(self.cell_contours[cell_count], (point_x, point_y),
+                                                              False)
+                            # print(in_polygon)
+                            if in_polygon >= 0:
+                                # print(diff_box)
+                                n = cv2.mean(diff[y:y + h, x:x + w])[0]
+                                posns[row][col].append(((point_x, point_y), n))
 
-                        posns[row][col].append(((point_x, point_y), n))
-
-                        break
-                        # if gray_avg < darkest_pixel_val:
-                        #   darkest_pixel_val = gray_avg
+                                break
 
         for row, col in generate_row_col(self.shape_of_rows):
             ten_darkest_centroids = sorted(posns[row][col], key=lambda posn: posn[1])[:10]
             if len(ten_darkest_centroids) > 0:
                 sorted_contours.append(
                     [time, frame_count, row, col, ten_darkest_centroids[0][0][0], ten_darkest_centroids[0][0][1]])
-
+                last_confident_centroid[row][col] = ten_darkest_centroids[0][0]
+            else:
+                sorted_contours.append([time, frame_count, row, col, last_confident_centroid[row][col][0],
+                                        last_confident_centroid[row][col][1]])
                 # for c in ten_darkest_centroids:
                 #    all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
         return sorted_contours
-"""
 
 def process_command_string(cmd_string: pd.DataFrame) -> [list[str], str, int]:
     """Converts a command into separate pieces."""
@@ -360,172 +156,3 @@ def process_command_string(cmd_string: pd.DataFrame) -> [list[str], str, int]:
     video_type = cmd_string.iloc[2]
 
     return at_time, arduino_command, video_type
-"""
-def video():
-    # Retrieve singleton reference to system object
-    system = PySpin.System.GetInstance()
-    cam_list = setup(system)
-
-    # Run example on each camera
-    cam = cam_list[0]
-        
-    try:
-        nodemap, nodemap_tldevice = setup_nodemap(cam)
-        print('*** IMAGE ACQUISITION ***\n')
-        
-        set_node_acquisition_mode(nodemap)
-
-        cam.BeginAcquisition()
-
-        node_fps = PySpin.CFloatPtr(nodemap.GetNode("AcquisitionFrameRate"))
-        node_fps.SetValue(30.0)
-
-        print('Acquiring images...')
-        
-        timer = PreciseTime()
-
-        pr = cProfile.Profile()
-        pr.enable()
-        
-        counter = 0
-        schedule_times = pd.read_csv(os.getcwd() + "\\shortened-schedule", sep="\t", header=None)
-        num_of_instructions = schedule_times.shape[0]
-        first_time = True
-        end_time = np.inf
-        
-        frame_counter = 0
-        
-        r = RunCV(FRAME_WIDTH, FRAME_HEIGHT, pre_output_filepath, gui)
-        dev = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
-
-        while counter < num_of_instructions and dpg.is_dearpygui_running():
-            image = get_image(cam)
-            image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-            
-            r.curr_img = image
-            r.curr_img_data = image_data
-            
-            if gui.start_recording:
-                if first_time: #setup all necessary pieces    
-                    at_time, command_string, type_of_video = process_command_string(
-                        schedule_times.iloc[counter])
-                    print("COMMANDS: ", at_time, command_string, type_of_video)
-                    if type_of_video == 0:
-                        duration = 0
-                    elif type_of_video == 1:
-                        duration = 1
-                    elif type_of_video == 2:
-                        duration = 108000
-                    
-                    if duration != None:                        
-                        vid_name = "_".join(str(at_time).strip("[]").split(", ")) + "-" + str(counter)
-                        node_fps = PySpin.CFloatPtr(nodemap.GetNode("AcquisitionFrameRate"))
-
-                        if type_of_video == 1:
-                            node_fps.SetValue(285.0)
-                            result = cv2.VideoWriter(f'{vid_name}.avi',
-                                                     cv2.VideoWriter_fourcc(*'MJPG'),
-                                                     285, (FRAME_WIDTH, FRAME_HEIGHT), False)
-                        else:
-                            node_fps.SetValue(30.0)
-                            result = cv2.VideoWriter(f'{vid_name}-long.avi',
-                                                     cv2.VideoWriter_fourcc(*'MJPG'),
-                                                         30, (FRAME_WIDTH, FRAME_HEIGHT), False)
-                        
-                    first_time = False
-                    not_written_to_arduino = True
-                    
-                if (timer.formatted_time(timer.now()) == at_time and (type_of_video == 1 or type_of_video == 0)) or (timer.formatted_time(timer.now()) >= at_time and type_of_video == 2):
-                    if end_time == np.inf:
-                        end_time = int(timer.now()) + duration
-                        
-                    if duration != 0:
-                        result.write(image)
-                    
-                    if not_written_to_arduino:
-                        dev.write(bytes(command_string, 'utf-8'))
-                        not_written_to_arduino = False
-                    
-                if (timer.now() >= end_time):
-                    counter += 1    
-                    first_time = True
-                    end_time = np.inf
-
-            if r.mode_noblur_img is None:
-                r.find_mode(frame_counter)
-            elif gui.contour_overlay:
-                if gui.contours_updated:
-                    contour_mask = np.zeros((FRAME_HEIGHT, FRAME_WIDTH, 3))
-                    for c in gui.rt_tracker.cell_contours:
-                        contour_mask = cv2.drawContours(contour_mask, [c],
-                                                        -1, (255, 255, 255), thickness=cv2.FILLED)
-                        
-                    r.mask = cv2.cvtColor(
-                        np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
-                    
-                    r.masked_mode_noblur_img = cv2.bitwise_and(
-                        r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
-                    
-                    gui.contours_updated = False
-                
-                time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
-                r.run_CV(frame_counter, time_)
-            
-            data = np.flip(r.curr_img_data, 2)
-            data = data.ravel()
-            data = np.asfarray(data, dtype='f')
-            texture_data = np.true_divide(data, 255.0)
-            
-            frame_counter += 1
-            
-            dpg.set_value("texture_tag", texture_data)
-            dpg.render_dearpygui_frame()
-            
-        pr.disable()
-        s = io.StringIO()
-        sortby = SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print(s.getvalue())
-
-        cam.EndAcquisition()
-            
-        # Deinitialize camera
-        cam.DeInit()
-
-    except PySpin.SpinnakerException as ex:
-        print('Error: %s' % ex)
-
-
-    # Release reference to camera
-    # NOTE: Unlike the C++ examples, we cannot rely on pointer objects being automatically
-    # cleaned up when going out of scope.
-    # The usage of del is preferred to assigning the variable to None.
-    del cam
-
-    # Clear camera list before releasing system
-    cam_list.Clear()
-
-    # Release system instance
-    system.ReleaseInstance()
-
-
-if __name__ == '__main__':    
-    continue_recording = True
-    contour_overlay = False
-
-    FRAME_HEIGHT, FRAME_WIDTH = 652, 1024
-
-    dpg.create_context()
-
-    gui = GUIHelpers(FRAME_HEIGHT, FRAME_WIDTH)
-
-    dpg.set_primary_window(gui.window, True)
-    dpg.create_viewport(width=int(FRAME_WIDTH*1.5), height=FRAME_HEIGHT+20, title="ROI Selector")
-    dpg.setup_dearpygui()
-    dpg.show_viewport()
-    
-    video()
-"""
-#video_thread = Thread(target=video)
-#video_thread.start()
