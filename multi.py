@@ -200,7 +200,7 @@ class PoolRun:
         dpg.setup_dearpygui()
         dpg.show_viewport()
 
-        r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', gui)
+        #r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', gui)
         frame_counter = 0
     
         ux = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
@@ -215,7 +215,8 @@ class PoolRun:
                 
                 image = img_queue.get()
                 image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                            
+                
+                """
                 r.curr_img = image
                 r.curr_img_data = image_data
                 
@@ -242,7 +243,7 @@ class PoolRun:
                     
 
                     r.run_CV(frame_counter, time_, ux, uy, uxx, uyy, uxy)
-                    
+                    """
                 data = np.flip(image_data, 2)
                 data = data.ravel()
                 data = np.asfarray(data, dtype='f')

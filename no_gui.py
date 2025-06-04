@@ -36,7 +36,7 @@ import math
 
 import os
 
-fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-30-25\\"
+fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-3-25-real\\"
 
 import logging
 
@@ -106,7 +106,7 @@ class PoolRun:
             cam.BeginAcquisition()
 
             recording = False
-            count = 0
+            count = 1
             count_mod = 9
             while not done.is_set():
                 if fps_commands.poll():
@@ -131,17 +131,20 @@ class PoolRun:
                             logger.info(e)
                             break
                 
-                if fps == 285.0 and count == count_mod:
-                    img_queue.put(image)
+                if fps == 285.0:
+                    if count == count_mod:
+                        img_queue.put(image)
+                        
+                        if count_mod == 9:
+                            count_mod = 10
+                            count = 1
+                        else:
+                            count_mod = 9
+                            count = 1
                     count += 1
-                    
-                    if count_mod == 9:
-                        count_mod = 10
-                    else:
-                        count_mod = 9
-                else:    
+                elif fps == val:    
                     img_queue.put(image)
-                    
+                    count = 1
                 if keyboard.is_pressed('q'):
                     done.set()
 
@@ -228,7 +231,7 @@ class PoolRun:
         #dpg.show_viewport()
         #with open(f"{fn_start}\\zebrafish-tracker-full-restart.cells", 'rb') as filename:
         #    cell_contours = pickle.load(filename)
-        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker-5-22-25-realrun.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
+        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker-6-3-25.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
         r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', cell_contours, shape_of_rows)
            
@@ -530,7 +533,7 @@ def sort_contours_by_area(contours, frame_count, time, diff, mask, shape_of_rows
     # darkest_pixel_val = 255
     posns = [[[] for j in range(shape_of_rows[i])] for i in
              range(len(shape_of_rows))]
-
+    last_confident_centroid = [[cell_centers[row][col] for col in range(shape_of_rows[row])] for row in range(len(shape_of_rows))]
     sorted_contours = []
     
     #print(shape_of_rows)
@@ -569,7 +572,9 @@ def sort_contours_by_area(contours, frame_count, time, diff, mask, shape_of_rows
         if len(ten_darkest_centroids) > 0:
             sorted_contours.append(
                 [time, frame_count, row, col, ten_darkest_centroids[0][0][0], ten_darkest_centroids[0][0][1]])
-
+            last_confident_centroid[row][col] = ten_darkest_centroids[0][0]
+        else:
+            sorted_contours.append([time, frame_count, row, col, last_confident_centroid[row][col][0], last_confident_centroid[row][col][1]])
             # for c in ten_darkest_centroids:
             #    all_centr_in_frame.append([frame_count, row, col, c[0][0], c[0][1]])
     return sorted_contours
