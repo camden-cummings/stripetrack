@@ -38,11 +38,14 @@ class GUIHelpers(GUI):
         #self.rt_tracker = RealTimeTracker([], [1], self.min_area, self.max_area, self.length_req,
         #                                  np.zeros((frame_height, frame_width)))
 
+        self.cell_contours = []
+
         self.show_only_inside_contours = False
         self.contour_overlay = False
         self.contours_updated = False
         self.start_recording = False
         self.mode_calculated = False
+
 
     def start_recording_callback(self, _, __):
         # TODO check here if GUI save file exists
@@ -54,6 +57,7 @@ class GUIHelpers(GUI):
                                                                                        self.frame_width,
                                                                                        self.frame_height)
 
+        self.cell_contours = cell_contours
         #self.rt_tracker = RealTimeTracker(cell_contours, shape_of_rows, self.min_area, self.max_area, self.length_req,
         #                                  contour_mask)
 

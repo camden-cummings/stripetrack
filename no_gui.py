@@ -372,58 +372,7 @@ class PoolRun:
                     
                     if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(detected_centroids) > 0:
                         #print("saving")
-                        if not os.path.exists(output_filepath):
-                            new = pd.DataFrame(np.matrix(detected_centroids),
-                                               columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
-                            new.to_csv(output_filepath, sep=',', index=False)
-                        else:
-                            #print('adding on')
-                            new = pd.DataFrame(np.matrix(detected_centroids),
-                                               columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
-                            new.to_csv(output_filepath, sep=',', mode='a', index=False, header=False)
-                            detected_centroids.clear()
-                    
-                    
-                    #pr.disable()
-                    #s = io.StringIO()
-                    #sortby = SortKey.CUMULATIVE
-                    #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-                    #ps.print_stats()
-                    #print(s.getvalue())
-                    
-                """
-                elif gui.contour_overlay:
-                    if gui.contours_updated:
-                        contour_mask = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH, 3))
-                        for c in gui.rt_tracker.cell_contours:
-                            contour_mask = cv2.drawContours(contour_mask, [c],
-                                                            -1, (255, 255, 255), thickness=cv2.FILLED)
-
-                        r.mask = cv2.cvtColor(
-                            np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
-
-                        masked_mode_noblur_img = cv2.bitwise_and(
-                            r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
-                        masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
-                        r.masked_mode_noblur_img = masked_mode_noblur_img
-
-                        gui.contours_updated = False
-
-                    time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
-                    r.run_CV(frame_counter, time_, ux, uy, uxx, uyy, uxy)
-
-                data = np.flip(image_data, 2)
-                data = data.ravel()
-                data = np.asfarray(data, dtype='f')
-                texture_data = np.true_divide(data, 255.0)
-
-
-                dpg.set_value("texture_tag", texture_data)
-                dpg.render_dearpygui_frame()
-
-                if gui.start_recording:
-                    start_recording.set()
-                """
+                        self.save_centroids_to_csv(output_filepath, detected_centroids)
 
                 frame_counter += 1
                 #print(timer.now())
@@ -450,9 +399,17 @@ class PoolRun:
         ps.print_stats()
         print(s.getvalue())
         """
-                    #
-        #dpg.destroy_context()
-
+    def save_centroids_to_csv(self, output_filepath, detected_centroids):
+        if not os.path.exists(output_filepath):
+            new = pd.DataFrame(np.matrix(detected_centroids),
+                               columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
+            new.to_csv(output_filepath, sep=',', index=False)
+        else:
+            # print('adding on')
+            new = pd.DataFrame(np.matrix(detected_centroids),
+                               columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
+            new.to_csv(output_filepath, sep=',', mode='a', index=False, header=False)
+            detected_centroids.clear()
 
     #    @profile
     def printer_pool(self, done, start_recording, fps_commands, recording_commands):
@@ -529,7 +486,7 @@ class PoolRun:
         done.set()
 
 
-def sort_contours_by_area(contours, frame_count, time, diff, mask, shape_of_rows, cell_contours, cell_centers):
+def sort_contours_by_area(contours, frame_count, time, diff, mask, shape_of_rows, cell_contours, cell_centers): # TODO put this back into runcv -- but want to check that it makes sense first
     # darkest_pixel_val = 255
     posns = [[[] for j in range(shape_of_rows[i])] for i in
              range(len(shape_of_rows))]

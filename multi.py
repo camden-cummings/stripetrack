@@ -76,7 +76,7 @@ class GUIPoolRun(PoolRun):
         dpg.setup_dearpygui()
         dpg.show_viewport()
 
-        #r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', gui)
+        r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', gui)
         frame_counter = 0
     
         ux = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
@@ -91,8 +91,7 @@ class GUIPoolRun(PoolRun):
                 
                 image = img_queue.get()
                 image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                
-                """
+
                 r.curr_img = image
                 r.curr_img_data = image_data
                 
@@ -101,7 +100,7 @@ class GUIPoolRun(PoolRun):
                 elif gui.contour_overlay:
                     if gui.contours_updated:
                         contour_mask = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH, 3))
-                        for c in gui.rt_tracker.cell_contours:
+                        for c in gui.cell_contours:
                             contour_mask = cv2.drawContours(contour_mask, [c],
                                                             -1, (255, 255, 255), thickness=cv2.FILLED)
                             
@@ -118,8 +117,6 @@ class GUIPoolRun(PoolRun):
                     time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
                     
 
-                    r.run_CV(frame_counter, time_, ux, uy, uxx, uyy, uxy)
-                    """
                 data = np.flip(image_data, 2)
                 data = data.ravel()
                 data = np.asfarray(data, dtype='f')
