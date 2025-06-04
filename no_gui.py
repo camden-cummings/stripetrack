@@ -613,7 +613,3 @@ if __name__ == '__main__':
 #    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
 #    ps.print_stats()
 #    print(s.getvalue())
-
-# pool.apply_async(video_pool)
-# video_thread = Thread(target=video)
-# video_thread.start()
