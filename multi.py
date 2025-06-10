@@ -1,5 +1,4 @@
-
-from multiprocessing import Pool, Process
+from multiprocessing import Process
 import multiprocessing
 import cProfile, pstats, io
 from pstats import SortKey
@@ -9,7 +8,7 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
+from camera_helpers import setup_nodemap, set_node_acquisition_mode, get_image
 from gui_helpers import GUIHelpers
 
 from precise_time import PreciseTime
@@ -22,7 +21,6 @@ import gc
 
 import pandas as pd
 
-import keyboard 
 import serial
 
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-6-25\\"
@@ -53,7 +51,7 @@ sys.stdout = LogFile('memory_profile_log', reportIncrementFlag=False)
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
 
-val = 20.0
+val = 30.0
 
 class GUIPoolRun(PoolRun):
     def __init__(self):

@@ -6,7 +6,6 @@ from pstats import SortKey
 import PySpin
 import cv2
 import numpy as np
-import dearpygui.dearpygui as dpg
 
 from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
 
@@ -30,7 +29,7 @@ import math
 
 import os
 
-fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-3-25-real\\"
+fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-10-25-test\\"
 
 import logging
 
@@ -227,7 +226,7 @@ class PoolRun:
         #    cell_contours = pickle.load(filename)
         cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker-6-3-25.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
-        r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', cell_contours, shape_of_rows)
+        r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', cell_contours, cell_centers, shape_of_rows)
            
         # just for testing
         image = img_queue.get()

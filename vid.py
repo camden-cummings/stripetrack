@@ -1,4 +1,3 @@
-import os
 from multiprocessing import Pool
 #import cProfile, pstats, io
 #from pstats import SortKey
@@ -6,17 +5,11 @@ from multiprocessing import Pool
 import PySpin
 import cv2
 import numpy as np
-import dearpygui.dearpygui as dpg
 import pandas as pd
-import serial
 
-from precise_time import PreciseTime
 from tracker.cell_finder_helpers.calc_mode import calc_mode
-from AcquireAndDisplayClass import get_image
-from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_device_serial_number
-from gui_helpers import GUIHelpers
-from tracker.helpers.centroid_manip import find_centroid_of_contour, check_masked_image, generate_row_col
-from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, setup as ssim_setup #structural_similarity
+from tracker.helpers.centroid_manip import check_masked_image, generate_row_col
+from structural_sim_from_scratch import setup as ssim_setup #structural_similarity
 
 import math
 
