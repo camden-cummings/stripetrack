@@ -65,7 +65,6 @@ val = 30.0
 class PoolRun:
     def __init__(self):
         self.FRAME_WIDTH, self.FRAME_HEIGHT = 992, 660
-        self.image_data = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT, 3))
 
     # @profile
     def video_pool(self, img_queue, done, fps_commands, recording_queue):
@@ -225,7 +224,7 @@ class PoolRun:
         #    cell_contours = pickle.load(filename)
         cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker-6-10.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
-        r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', cell_contours, cell_centers, shape_of_rows)
+        r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)
            
         # just for testing
         image = img_queue.get()
@@ -275,29 +274,24 @@ class PoolRun:
                 #if cv2.waitKey(1) == 1:
                 #    break
 
-                r.curr_img = image
-                r.curr_img_data = image_data
-                
                 arr_time = str(timer.formatted_time(timer.now())).strip("[]").split(", ")
                 time = "_".join(arr_time)
                 logger.info(time, img_queue.qsize())
 
                 #print(time)
-                if (36 <= int(arr_time[1]) <= 38 and r.not_found_mode) or (r.mode_noblur_img is None):
+                if (36 <= int(arr_time[1]) <= 38 and not r.found_mode) or (r.mode_noblur_img is None):
                     #print('finding mode')
-                    r.find_mode(frame_counter)
+                    r.find_mode(frame_counter, image)
                 elif arr_time[1] == 39:
-                    r.not_found_mode = True
+                    r.found_mode = False
                     
                 if r.mode_noblur_img is not None:
                     if not r.setup:
                         print('setting up')
-                        r.mask = contour_mask#.astype(np.float64, copy=False)
-                        r.mode_noblur_img = r.mode_noblur_img.astype(np.float64, copy=False)
+                        mode_noblur_img = mode_noblur_img.astype(np.float64, copy=False)
                         masked_mode_noblur_img = cv2.bitwise_and(
-                            r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
-                        r.masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
-                        masked_mode_noblur_img = r.masked_mode_noblur_img
+                            mode_noblur_img, mode_noblur_img, mask=contour_mask)
+                        masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
                         r.setup = True
                         
                         # we don't have to do this every time - will remain constant

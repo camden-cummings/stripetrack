@@ -19,26 +19,23 @@ class ModeFinder:
         self.async_result = None
 
         self.mode_noblur_img = None
-        self.curr_img = None
-        self.curr_img_data = None
-        self.mask = None
-        self.masked_mode_noblur_img = None
+        self.prev_mode_noblur_img = None
 
         self.FRAME_HEIGHT = FRAME_HEIGHT
         self.FRAME_WIDTH = FRAME_WIDTH
 
         self.movie_deq = []
 
-        self.not_found_mode = True
+        self.found_mode = False
         self.setup = False
         
         
-    def find_mode(self, frame_counter):
+    def find_mode(self, frame_counter, image):
         global run_once
         #print(len(self.movie_deq))
         if len(self.movie_deq) < DESIRED_MODE_FRAMES and frame_counter % 50 == 0:
             print("1 - ")
-            self.movie_deq.append(self.curr_img)
+            self.movie_deq.append(image)
         elif len(self.movie_deq) >= DESIRED_MODE_FRAMES and run_once == True:
             print("2 - ")
             print("run once", run_once)
@@ -52,11 +49,18 @@ class ModeFinder:
             print("asnc", self.async_result.ready())
         if self.async_result is not None and self.async_result.ready():
             print("3 - ")
+            self.prev_mode_noblur_img = self.mode_noblur_img
             self.mode_noblur_img = self.async_result.get()
             self.movie_deq.clear()
             self.setup=False
             self.async_result = None
-            self.not_found_mode = False
+
+            if self.prev_mode_noblur_img is None and self.mode_noblur_img is not None:
+                self.found_mode = False
+            else:
+                self.found_mode = True
+
+
             run_once = True
             print("4")
             #self.gui.mode_calculated = True
