@@ -10,6 +10,9 @@ import dearpygui.dearpygui as dpg
 
 from camera_helpers import setup_nodemap, set_node_acquisition_mode, get_image
 from gui_helpers import GUIHelpers
+from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, setup as ssim_setup
+from sort_contours_by_area import sort_contours_by_area
+
 
 from precise_time import PreciseTime
 
@@ -24,10 +27,11 @@ import pandas as pd
 
 import serial
 
-fn_start = "C:\\Users\\ThymeLab\\Desktop\\5-6-25\\"
+fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-11-25\\"
 
 import logging
 
+"""
 # create logger
 mem_logger = logging.getLogger('memory_profile_log')
 mem_logger.setLevel(logging.DEBUG)
@@ -48,7 +52,7 @@ import sys
 sys.stdout = LogFile('memory_profile_log', reportIncrementFlag=False)
 
 #from memory_profiler import profile
-
+"""
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
 
@@ -76,68 +80,148 @@ class GUIPoolRun(PoolRun):
 
         r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)#, f'{fn_start}pre-processed.csv', gui)
         frame_counter = 0
-    
-        ux = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
-        uy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
-        uxx = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
-        uyy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
-        uxy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
+            
+        sigma = 1.5
+        truncate = 3.5
+        radius = int(truncate * sigma + 0.5)  # radius as in ndimage
+        win_size = 2 * radius + 1
+        ndim = 2
+        NP = win_size ** ndim
+        cov_norm = NP / (NP - 1)  # sample covariance
+        
+        data_range = 255
+        
+        C1 = (0.01 * data_range) ** 2 #K = 0.01
+        C2 = (0.03 * data_range) ** 2 #K = 0.03
+        
+        ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_WIDTH,self.FRAME_HEIGHT) # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
+        
+        weights = [0.00102838, 0.00759876, 0.03600077, 0.10936069, 0.21300554, 0.26601172,
+                   0.21300554, 0.10936069, 0.03600077, 0.00759876, 0.00102838]        
+        
+        np_weights = np.asarray(weights)
 
+        ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT)
+        
+        diff = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
+
+        image = img_queue.get()
+
+        correlate1d_x(image, weights, uyy_tmp)  # , curr_scipy)
+        correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
+        
+        detected_centroids = []
+        
+        FRAMES_TO_SAVE_AFTER = 1800
+        output_filepath =  f'{fn_start}pre-processed.csv'
+        
         while not done.is_set():    
-            try:
+#            try:
 #                print(img_queue.qsize())
-                
-                image = img_queue.get()
-                image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+            
+            image = img_queue.get()
+            image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
-                r.curr_img = image
-                r.curr_img_data = image_data
+            if r.mode_noblur_img is None:
+                r.find_mode(frame_counter, image)
+            elif gui.contour_overlay:
+                if gui.contours_updated or r.mode_updated:
+                    print("setting up")
+                    contour_mask = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH, 3))
+                    for c in gui.cell_contours:
+                        contour_mask = cv2.drawContours(contour_mask, [c],
+                                                        -1, (255, 255, 255), thickness=cv2.FILLED)
+                        
+                    mask = cv2.cvtColor(
+                        np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
+                    
+                    print('mask', mask)
+                    mode_noblur_img = r.mode_noblur_img.astype(np.float64, copy=False)
+                    masked_mode_noblur_img = cv2.bitwise_and(
+                        mode_noblur_img, mode_noblur_img, mask=mask)
+                    masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
+                    
+                    correlate1d_x(masked_mode_noblur_img, weights, uy_tmp)  # , curr_scipy)
+                    correlate1d_y(uy_tmp, weights, uy)  # , curr_scipy)
+                    
+                    correlate1d_x(masked_mode_noblur_img * masked_mode_noblur_img, weights, uyy_tmp)  # , curr_scipy)
+                    correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
+                    uy_squared = uy * uy
+                    vy = cov_norm * (uyy - uy_squared)
+                    
+                    gui.contours_updated = False
+                    r.mode_updated = False
                 
-                if r.mode_noblur_img is None:
-                    r.find_mode(frame_counter)
-                elif gui.contour_overlay:
-                    if gui.contours_updated:
-                        contour_mask = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH, 3))
-                        for c in gui.cell_contours:
-                            contour_mask = cv2.drawContours(contour_mask, [c],
-                                                            -1, (255, 255, 255), thickness=cv2.FILLED)
-                            
-                        r.mask = cv2.cvtColor(
-                            np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
-                        
-                        masked_mode_noblur_img = cv2.bitwise_and(
-                            r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
-                        masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
-                        r.masked_mode_noblur_img = masked_mode_noblur_img
-                        
-                        gui.contours_updated = False
-                    
-                    time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
-                    
+                time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
+                
+                masked_curr_img = cv2.bitwise_and(
+                    image, image, mask=mask)
+                masked_curr_img = masked_curr_img.astype(np.float64, copy=False)
 
-                data = np.flip(image_data, 2)
-                data = data.ravel()
-                data = np.asfarray(data, dtype='f')
-                texture_data = np.true_divide(data, 255.0)
+                correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
+                correlate1d_y(ux_tmp, weights, ux)  # , curr_scipy)
+
+                correlate1d_x(masked_curr_img * masked_curr_img, weights, uxx_tmp)  # , curr_scipy)
+                correlate1d_y(uxx_tmp, weights, uxx)  # , curr_scipy)
                 
-                frame_counter += 1
-    
-                dpg.set_value("texture_tag", texture_data)
-                dpg.render_dearpygui_frame()
+                correlate1d_x(masked_curr_img * masked_mode_noblur_img, weights, uxy_tmp)  # , curr_scipy)
+                correlate1d_y(uxy_tmp, weights, uxy)  # , curr_scipy)
                 
-                if gui.start_recording:
-                    start_recording.set()
+                #print(ux, uy, uxx, uyy, uxy, )
+                diff = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
+                                
+                diff[diff > 1] = 1
+                diff[diff < 0] = 0
+                
+                diff *= 255
+                diff = diff.astype("uint8")
+                
+                thresh_img = cv2.threshold(diff, 155, 255, cv2.THRESH_BINARY)[1]
+                contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+                contours = contours[0] if len(contours) == 2 else contours[1]
+                #print("len contours", len(contours))
+
+                sorted_contours = sort_contours_by_area(contours, frame_counter, time_, diff, mask, gui.shape_of_rows, gui.cell_contours, gui.cell_centers)
+                
+                detected_centroids.extend(sorted_contours)
+                #print(sorted_contours)
+                for time, frame_count, row, col, x, y in sorted_contours:
+                    cv2.circle(image_data, (x, y), 1, (0, 0, 255), 5, cv2.LINE_4)
+                #cv2.drawContours(image_data, contours, -1, (0,255,0), 1)
+
+                #cv2.imshow('data', image_data)
+
+                #r.run_CV(frame_counter, time_)
+
+                #cv2.imshow('im', r.curr_img_data)
+                
+                if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(detected_centroids) > 0:
+                    #print("saving")
+                    self.save_centroids_to_csv(output_filepath, detected_centroids)
+
+            data = np.flip(image_data, 2)
+            data = data.ravel()
+            data = np.asfarray(data, dtype='f')
+            texture_data = np.true_divide(data, 255.0)
+            
+            frame_counter += 1
+
+            dpg.set_value("texture_tag", texture_data)
+            dpg.render_dearpygui_frame()
+            
+            if gui.start_recording:
+                start_recording.set()
                     
-            except Exception as e:
+            #except Exception as e:
                 #print(e)
-                logger.error(f"gui failed because: {e}")
-                logger.error(img_queue.qsize())
-                logger.error(gc.get_stats())
+            #    logger.error(f"gui failed because: {e}")
+            #    logger.error(img_queue.qsize())
+            #    logger.error(gc.get_stats())
 
         dpg.destroy_context()
 
 #    @profile
-    def printer_pool(self, queue, done, start_recording, fps_commands, recording_commands):
+    def printer_pool(self, done, start_recording, fps_commands, recording_commands):
         timer = PreciseTime()
 
         counter = 0
@@ -209,7 +293,7 @@ class GUIPoolRun(PoolRun):
         done.set()
             
 if __name__ == '__main__':   
-    poolrun = PoolRun()
+    poolrun = GUIPoolRun()
 
     print('Acquiring images...')
     
@@ -225,7 +309,7 @@ if __name__ == '__main__':
 
     vid_p = Process(target=poolrun.video_pool, args=(queue, done, fps_commands_vid, recording_queue,))
     gui_p = Process(target=poolrun.gui_pool, args=(queue, done, start_recording, ))
-    p = Process(target=poolrun.printer_pool, args=(queue, done, start_recording, fps_commands_p, recording_commands_p, ))
+    p = Process(target=poolrun.printer_pool, args=(done, start_recording, fps_commands_p, recording_commands_p, ))
     vid_rec_p = Process(target=poolrun.video_recorder_pool, args=(recording_queue, recording_commands_gui, done, ))
     vid_p.start()    
     gui_p.start()

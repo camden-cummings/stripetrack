@@ -28,7 +28,7 @@ from sort_contours_by_area import sort_contours_by_area
 
 import os
 
-fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-10-25-test\\"
+fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-11-25\\"
 
 import logging
 
@@ -283,17 +283,17 @@ class PoolRun:
                 if (0 <= int(arr_time[1]) <= 10 and not r.found_mode) or (r.mode_noblur_img is None):
                     #print('finding mode')
                     r.find_mode(frame_counter, image)
-                elif arr_time[1] == 16:
+                elif arr_time[1] == 11:
                     r.found_mode = False
                     
                 if r.mode_noblur_img is not None:
-                    if not r.setup:
+                    if r.mode_updated:
                         print('setting up')
                         mode_noblur_img = r.mode_noblur_img.astype(np.float64, copy=False)
                         masked_mode_noblur_img = cv2.bitwise_and(
                             mode_noblur_img, mode_noblur_img, mask=contour_mask)
                         masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
-                        r.setup = True
+                        r.mode_updated = False
                         
                         # we don't have to do this every time - will remain constant
                         #correlate1d_x(masked_mode_noblur_img, weights, uy_tmp)  # , curr_scipy)

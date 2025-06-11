@@ -39,7 +39,9 @@ class GUIHelpers(GUI):
         #                                  np.zeros((frame_height, frame_width)))
 
         self.cell_contours = []
-
+        self.cell_centers = []
+        self.shape_of_rows = []
+        
         self.show_only_inside_contours = False
         self.contour_overlay = False
         self.contours_updated = False
@@ -53,11 +55,10 @@ class GUIHelpers(GUI):
             self.start_recording = True
 
     def set_cells(self, _, appdata):
-        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(appdata["filepathname"],
+        self.cell_contours, contour_mask, self.cell_centers, self.shape_of_rows = convert_to_contours(appdata["filepathname"],
                                                                                        self.frame_width,
                                                                                        self.frame_height)
 
-        self.cell_contours = cell_contours
         #self.rt_tracker = RealTimeTracker(cell_contours, shape_of_rows, self.min_area, self.max_area, self.length_req,
         #                                  contour_mask)
 
@@ -72,7 +73,7 @@ class GUIHelpers(GUI):
                 self.contours_updated = True
 
                 print("Contour Overlay")
-                cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(
+                self.cell_contours, contour_mask, self.cell_centers, self.shape_of_rows = convert_to_contours(
                     self.state_manager.roi_interface.convert_rois_to_np_array(self.state_manager.roi_interface.rois),
                     self.frame_width, self.frame_height)
 

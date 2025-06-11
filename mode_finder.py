@@ -11,8 +11,8 @@ global run_once
 
 run_once = True
 
-DESIRED_MODE_FRAMES = 2#50
-FRAMES_TO_SAVE_AFTER = 2#100
+DESIRED_MODE_FRAMES = 50
+FRAMES_TO_SAVE_AFTER = 100
 
 class ModeFinder:
     def __init__(self, FRAME_WIDTH, FRAME_HEIGHT):
@@ -27,8 +27,7 @@ class ModeFinder:
         self.movie_deq = []
 
         self.found_mode = False
-        self.setup = False
-        
+        self.mode_updated = False
         
     def find_mode(self, frame_counter, image):
         global run_once
@@ -49,8 +48,8 @@ class ModeFinder:
             self.prev_mode_noblur_img = self.mode_noblur_img
             self.mode_noblur_img = self.async_result.get()
             self.movie_deq.clear()
-            self.setup=False
-            self.async_result = None
+            self.mode_updated=True
+            self.async_result=None
 
             if self.prev_mode_noblur_img is None and self.mode_noblur_img is not None:
                 self.found_mode = False
