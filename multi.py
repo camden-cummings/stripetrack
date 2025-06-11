@@ -13,7 +13,7 @@ from gui_helpers import GUIHelpers
 
 from precise_time import PreciseTime
 
-from vid import RunCV, process_command_string
+from mode_finder import ModeFinder, process_command_string
 import queue
 from no_gui import PoolRun
 
@@ -73,7 +73,7 @@ class GUIPoolRun(PoolRun):
         dpg.setup_dearpygui()
         dpg.show_viewport()
 
-        r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', gui)
+        r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)#, f'{fn_start}pre-processed.csv', gui)
         frame_counter = 0
     
         ux = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT))
