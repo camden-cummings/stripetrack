@@ -224,7 +224,7 @@ class PoolRun:
         #dpg.show_viewport()
         #with open(f"{fn_start}\\zebrafish-tracker-full-restart.cells", 'rb') as filename:
         #    cell_contours = pickle.load(filename)
-        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker-6-3-25.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
+        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker-6-10.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
         r = RunCV(self.FRAME_WIDTH, self.FRAME_HEIGHT, f'{fn_start}pre-processed.csv', cell_contours, cell_centers, shape_of_rows)
            
@@ -233,8 +233,6 @@ class PoolRun:
         #r.mode_noblur_img=image
         # --------------------------------------
         frame_counter = 0
-
-        setup = False
         
         sigma = 1.5
         truncate = 3.5
@@ -272,8 +270,6 @@ class PoolRun:
         
         while not done.is_set():
             try:
-                logger.info(img_queue.qsize())
-
                 image = img_queue.get()
                 image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
@@ -282,36 +278,44 @@ class PoolRun:
 
                 r.curr_img = image
                 r.curr_img_data = image_data
+                
+                arr_time = str(timer.formatted_time(timer.now())).strip("[]").split(", ")
+                time = "_".join(arr_time)
+                logger.info(time, img_queue.qsize())
 
-                if r.mode_noblur_img is None:
+                #print(time)
+                if (36 <= int(arr_time[1]) <= 38 and r.not_found_mode) or (r.mode_noblur_img is None):
+                    #print('finding mode')
                     r.find_mode(frame_counter)
-                elif not setup:
-                    r.mask = contour_mask#.astype(np.float64, copy=False)
-                    r.mode_noblur_img = r.mode_noblur_img.astype(np.float64, copy=False)
-                    masked_mode_noblur_img = cv2.bitwise_and(
-                        r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
-                    r.masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
-                    masked_mode_noblur_img = r.masked_mode_noblur_img
-                    setup = True
+                elif arr_time[1] == 39:
+                    r.not_found_mode = True
                     
-                    # we don't have to do this every time - will remain constant
-                    #correlate1d_x(masked_mode_noblur_img, weights, uy_tmp)  # , curr_scipy)
-                    correlate1d_x(masked_mode_noblur_img, weights, uy_tmp)  # , curr_scipy)
-                    correlate1d_y(uy_tmp, weights, uy)  # , curr_scipy)
-                    
-                    correlate1d_x(masked_mode_noblur_img * masked_mode_noblur_img, weights, uyy_tmp)  # , curr_scipy)
-                    correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
-                    uy_squared = uy * uy
-                    vy = cov_norm * (uyy - uy_squared)
-
-                else:
-                    #pr = cProfile.Profile()
-                    #pr.enable()
-                    
-                    time = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
-
+                if r.mode_noblur_img is not None:
+                    if not r.setup:
+                        print('setting up')
+                        r.mask = contour_mask#.astype(np.float64, copy=False)
+                        r.mode_noblur_img = r.mode_noblur_img.astype(np.float64, copy=False)
+                        masked_mode_noblur_img = cv2.bitwise_and(
+                            r.mode_noblur_img, r.mode_noblur_img, mask=r.mask)
+                        r.masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
+                        masked_mode_noblur_img = r.masked_mode_noblur_img
+                        r.setup = True
+                        
+                        # we don't have to do this every time - will remain constant
+                        #correlate1d_x(masked_mode_noblur_img, weights, uy_tmp)  # , curr_scipy)
+                        correlate1d_x(masked_mode_noblur_img, weights, uy_tmp)  # , curr_scipy)
+                        correlate1d_y(uy_tmp, weights, uy)  # , curr_scipy)
+                        
+                        correlate1d_x(masked_mode_noblur_img * masked_mode_noblur_img, weights, uyy_tmp)  # , curr_scipy)
+                        correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
+                        uy_squared = uy * uy
+                        vy = cov_norm * (uyy - uy_squared)
+    
+                        #pr = cProfile.Profile()
+                        #pr.enable()
+    
                     #print(timer.now())
-
+                    #print('tracking')
                     #image = image.astype(np.float64, copy=False)
                     masked_curr_img = cv2.bitwise_and(
                         image, image, mask=contour_mask)

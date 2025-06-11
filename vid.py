@@ -18,14 +18,14 @@ global run_once
 
 run_once = True
 
-DESIRED_MODE_FRAMES = 50
+DESIRED_MODE_FRAMES = 2#50
    
 weights = [0.00102838, 0.00759876, 0.03600077, 0.10936069, 0.21300554, 0.26601172,
  0.21300554, 0.10936069, 0.03600077, 0.00759876, 0.00102838]
 
 np_weights = np.asarray(weights)
     
-FRAMES_TO_SAVE_AFTER = 100
+FRAMES_TO_SAVE_AFTER = 2#100
 pre_output_filepath = 'pre-processed.csv'
 
 class RunCV:
@@ -46,10 +46,13 @@ class RunCV:
         self.cell_contours = cell_contours
         self.cell_centers = cell_centers
         self.shape_of_rows = shape_of_rows
-        
+            
+        self.not_found_mode = True
         self.ux_tmp, self.uy_tmp, self.uxx_tmp, self.uyy_tmp, self.uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT)
         self.ux, self.uy, self.uxx, self.uyy, self.uxy = ssim_setup(self.FRAME_HEIGHT, self.FRAME_WIDTH)
 
+        self.setup = False
+        
         sigma = 1.5
         truncate = 3.5
         r = int(truncate * sigma + 0.5)  # radius as in ndimage
@@ -69,19 +72,30 @@ class RunCV:
         
     def find_mode(self, frame_counter):
         global run_once
-
+        #print(len(self.movie_deq))
         if len(self.movie_deq) < DESIRED_MODE_FRAMES and frame_counter % 50 == 0:
+            print("1 - ")
             self.movie_deq.append(self.curr_img)
         elif len(self.movie_deq) >= DESIRED_MODE_FRAMES and run_once == True:
+            print("2 - ")
+            print("run once", run_once)
             pool = Pool(processes=1)
             self.async_result = pool.apply_async(calc_mode, (self.movie_deq, self.FRAME_HEIGHT, self.FRAME_WIDTH))
             #mode_noblur_img = calc_mode(movie_deq, FRAME_HEIGHT, FRAME_WIDTH)
             
             run_once = False
-
+       
+        if self.async_result is not None:
+            print("asnc", self.async_result.ready())
         if self.async_result is not None and self.async_result.ready():
+            print("3 - ")
             self.mode_noblur_img = self.async_result.get()
-
+            self.movie_deq.clear()
+            self.setup=False
+            self.async_result = None
+            self.not_found_mode = False
+            run_once = True
+            print("4")
             #self.gui.mode_calculated = True
             #self.gui.rt_tracker.standard_image_noise = self.gui.rt_tracker.CV_image_noise_light_background(self.mode_noblur_img)
             #dpg.configure_item(self.gui.status, default_value="Status: Ready")
