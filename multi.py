@@ -13,7 +13,8 @@ from gui_helpers import GUIHelpers
 
 from precise_time import PreciseTime
 
-from mode_finder import ModeFinder, process_command_string
+from mode_finder import ModeFinder
+from command_reader import process_command_string
 import queue
 from no_gui import PoolRun
 

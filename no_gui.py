@@ -11,7 +11,8 @@ from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_
 
 from precise_time import PreciseTime
 
-from mode_finder import ModeFinder, process_command_string
+from mode_finder import ModeFinder
+from command_reader import process_command_string
 
 import gc
 
@@ -24,8 +25,6 @@ from tracker.roi_manip import convert_to_contours
 
 from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, setup as ssim_setup
 from sort_contours_by_area import sort_contours_by_area
-
-import math
 
 import os
 

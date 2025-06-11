@@ -3,15 +3,8 @@ from multiprocessing import Pool
 #from pstats import SortKey
 
 import PySpin
-import cv2
-import numpy as np
-import pandas as pd
 
 from tracker.cell_finder_helpers.calc_mode import calc_mode
-from tracker.helpers.centroid_manip import check_masked_image, generate_row_col
-from structural_sim_from_scratch import setup as ssim_setup #structural_similarity
-
-import math
 
 global continue_recording
 global run_once
@@ -69,17 +62,3 @@ class ModeFinder:
             #self.gui.mode_calculated = True
             #self.gui.rt_tracker.standard_image_noise = self.gui.rt_tracker.CV_image_noise_light_background(self.mode_noblur_img)
             #dpg.configure_item(self.gui.status, default_value="Status: Ready")
-
-def process_command_string(cmd_string: pd.DataFrame) -> [list[str], str, int]:
-    """Converts a command into separate pieces."""
-
-    at_time = [int(r) for r in cmd_string.iloc[0].split(":")]
-
-    arduino_command = cmd_string.iloc[3]
-
-    if cmd_string.iloc[1] == "PM" and at_time[0] != 12:
-        at_time[0] += 12
-
-    video_type = cmd_string.iloc[2]
-
-    return at_time, arduino_command, video_type
