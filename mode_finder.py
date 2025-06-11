@@ -11,8 +11,8 @@ global run_once
 
 run_once = True
 
-DESIRED_MODE_FRAMES = 50
-FRAMES_TO_SAVE_AFTER = 100
+DESIRED_MODE_FRAMES = 2#50
+FRAMES_TO_SAVE_AFTER = 2#100
 
 class ModeFinder:
     def __init__(self, FRAME_WIDTH, FRAME_HEIGHT):

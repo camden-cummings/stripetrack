@@ -10,7 +10,7 @@ import dearpygui.dearpygui as dpg
 
 from camera_helpers import setup_nodemap, set_node_acquisition_mode, get_image
 from gui_helpers import GUIHelpers
-from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, setup as ssim_setup
+from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_, setup as ssim_setup
 from sort_contours_by_area import sort_contours_by_area
 
 
@@ -115,9 +115,11 @@ class GUIPoolRun(PoolRun):
         FRAMES_TO_SAVE_AFTER = 1800
         output_filepath =  f'{fn_start}pre-processed.csv'
         
+        prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH))
+
         while not done.is_set():    
 #            try:
-#                print(img_queue.qsize())
+            logger.info(img_queue.qsize())
             
             image = img_queue.get()
             image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
@@ -149,15 +151,20 @@ class GUIPoolRun(PoolRun):
                     uy_squared = uy * uy
                     vy = cov_norm * (uyy - uy_squared)
                     
+                    last_confident_centroid = [[gui.cell_centers[i][j] for j in range(gui.shape_of_rows[i])] for i in range(len(gui.shape_of_rows))]
+
                     gui.contours_updated = False
-                    r.mode_updated = False
+                    if r.mode_updated:
+                        r.mode_updated = False
+                        # dpg.configure_item(gui.status, "Ready")
                 
                 time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
                 
                 masked_curr_img = cv2.bitwise_and(
                     image, image, mask=mask)
                 masked_curr_img = masked_curr_img.astype(np.float64, copy=False)
-
+                
+                """
                 correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
                 correlate1d_y(ux_tmp, weights, ux)  # , curr_scipy)
 
@@ -166,9 +173,27 @@ class GUIPoolRun(PoolRun):
                 
                 correlate1d_x(masked_curr_img * masked_mode_noblur_img, weights, uxy_tmp)  # , curr_scipy)
                 correlate1d_y(uxy_tmp, weights, uxy)  # , curr_scipy)
+                """
                 
+                correlate1d_x(prev_masked_img, weights, uy_tmp)  # , curr_scipy)
+                correlate1d_y(uy_tmp, weights, uy)  # , curr_scipy)
+                
+                correlate1d_x(prev_masked_img * prev_masked_img, weights, uyy_tmp)  # , curr_scipy)
+                correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
+                
+                correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
+                correlate1d_y(ux_tmp, weights, ux)  # , curr_scipy)
+
+                correlate1d_x(masked_curr_img * masked_curr_img, weights, uxx_tmp)  # , curr_scipy)
+                correlate1d_y(uxx_tmp, weights, uxx)  # , curr_scipy)
+                
+                correlate1d_x(masked_curr_img * prev_masked_img, weights, uxy_tmp)  # , curr_scipy)
+                correlate1d_y(uxy_tmp, weights, uxy)  # , curr_scipy)
+                
+                prev_masked_img = masked_curr_img
                 #print(ux, uy, uxx, uyy, uxy, )
-                diff = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
+                #diff = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
+                diff = run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
                                 
                 diff[diff > 1] = 1
                 diff[diff < 0] = 0
@@ -181,12 +206,15 @@ class GUIPoolRun(PoolRun):
                 contours = contours[0] if len(contours) == 2 else contours[1]
                 #print("len contours", len(contours))
 
-                sorted_contours = sort_contours_by_area(contours, frame_counter, time_, diff, mask, gui.shape_of_rows, gui.cell_contours, gui.cell_centers)
+                sorted_contours = sort_contours_by_area(contours, last_confident_centroid, frame_counter, time_, diff, mask, gui.shape_of_rows, gui.cell_contours, gui.cell_centers)
                 
                 detected_centroids.extend(sorted_contours)
                 #print(sorted_contours)
-                for time, frame_count, row, col, x, y in sorted_contours:
-                    cv2.circle(image_data, (x, y), 1, (0, 0, 255), 5, cv2.LINE_4)
+                
+                if gui.contour_definer.cv_method == "Structural Similarity":
+                    for time, frame_count, row, col, x, y in sorted_contours:
+                        cv2.circle(image_data, (x, y), 1, (0, 0, 255), 5, cv2.LINE_4)
+                    
                 #cv2.drawContours(image_data, contours, -1, (0,255,0), 1)
 
                 #cv2.imshow('data', image_data)
@@ -205,8 +233,19 @@ class GUIPoolRun(PoolRun):
             texture_data = np.true_divide(data, 255.0)
             
             frame_counter += 1
+            
+            #print(texture_data.shape)
+            if gui.contour_definer.cv_method == "Structural Similarity" or gui.contour_definer.cv_method == "":
+                dpg.set_value("texture_tag", texture_data)
+            elif gui.contour_definer.cv_method == "Real Time":
+                diff_data = cv2.cvtColor(diff, cv2.COLOR_GRAY2BGR)
+                diff_data = np.flip(diff_data, 2)
+                diff_data = diff_data.ravel()
+                diff_data = np.asfarray(diff_data, dtype='f')
+                new = np.true_divide(diff_data, 255.0)
+                
+                dpg.set_value("texture_tag", new)
 
-            dpg.set_value("texture_tag", texture_data)
             dpg.render_dearpygui_frame()
             
             if gui.start_recording:
@@ -230,61 +269,61 @@ class GUIPoolRun(PoolRun):
         first_time = True
         end_time = np.inf
         dev = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
-        
+        logger.info("start printer pool")
         while counter < num_of_instructions and not done.is_set():
             try:
-                if start_recording.is_set():
-                    if first_time:  # setup all necessary pieces
-                        at_time, command_string, type_of_video = process_command_string(
-                            schedule_times.iloc[counter])
-                        logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
-                        # print(f"COMMANDS: {at_time} {command_string} {type_of_video}")
-                        if type_of_video == 0:
-                            duration = 0
-                        elif type_of_video == 1:
-                            duration = 1
-                        else:  # long video
-                            duration = 1800
+                #if start_recording.is_set():
+                if first_time:  # setup all necessary pieces
+                    at_time, command_string, type_of_video = process_command_string(
+                        schedule_times.iloc[counter])
+                    logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
+                    # print(f"COMMANDS: {at_time} {command_string} {type_of_video}")
+                    if type_of_video == 0:
+                        duration = 0
+                    elif type_of_video == 1:
+                        duration = 1
+                    else:  # long video
+                        duration = 1800
 
-                        j = [3600, 60, 1]
-                        curr_time = timer.formatted_time(timer.now())
-                        diff = sum([at_time[i] * j[i] for i in range(len(at_time))]) - sum(
-                            [curr_time[i] * j[i] for i in range(len(at_time))])
+                    j = [3600, 60, 1]
+                    curr_time = timer.formatted_time(timer.now())
+                    diff = sum([at_time[i] * j[i] for i in range(len(at_time))]) - sum(
+                        [curr_time[i] * j[i] for i in range(len(at_time))])
 
-                        if abs(diff) > 120:
-                            logger.info("sending val to fps")
-                            # print("sending val to fps")
-                            fps_commands.send(val)
+                    if abs(diff) > 120:
+                        logger.info("sending val to fps")
+                        # print("sending val to fps")
+                        fps_commands.send(val)
 
-                        recording_commands.send([duration, at_time, type_of_video, counter])
+                    recording_commands.send([duration, at_time, type_of_video, counter])
 
-                        first_time = False
+                    first_time = False
 
-                    if (timer.formatted_time(timer.now()) == at_time and (
-                            type_of_video == 1 or type_of_video == 0)) or (
-                            timer.formatted_time(timer.now()) >= at_time and type_of_video == 2):
-                        if end_time == np.inf:
-                            if duration != 0:
-                                if type_of_video == 1:
-                                    logger.info("sending 285.0")
-                                    # print("sending 285.0")
-                                    fps_commands.send(285.0)
-                                else:
-                                    logger.info(f"sending {val}")
-                                    # print(f"sending {val}")
-                                    fps_commands.send(val)
+                if (timer.formatted_time(timer.now()) == at_time and (
+                        type_of_video == 1 or type_of_video == 0)) or (
+                        timer.formatted_time(timer.now()) >= at_time and type_of_video == 2):
+                    if end_time == np.inf:
+                        if duration != 0:
+                            if type_of_video == 1:
+                                logger.info("sending 285.0")
+                                # print("sending 285.0")
+                                fps_commands.send(285.0)
+                            else:
+                                logger.info(f"sending {val}")
+                                # print(f"sending {val}")
+                                fps_commands.send(val)
 
-                            start_time = int(timer.now())
-                            end_time = start_time + duration
-                            recording_commands.send(["start_now", start_time, "end_now", end_time])
-                            dev.write(bytes(command_string, 'utf-8'))
+                        start_time = int(timer.now())
+                        end_time = start_time + duration
+                        recording_commands.send(["start_now", start_time, "end_now", end_time])
+                        dev.write(bytes(command_string, 'utf-8'))
 
-                    if timer.now() >= end_time:
-                        # recording_commands.send(["stop"])
-                        counter += 1
-                        first_time = True
-                        end_time = np.inf
-                        
+                if timer.now() >= end_time:
+                    # recording_commands.send(["stop"])
+                    counter += 1
+                    first_time = True
+                    end_time = np.inf
+                    
             except Exception as e:
                 #print(e)
                 logger.error(f"timer failed because: {e}")
@@ -297,8 +336,8 @@ if __name__ == '__main__':
 
     print('Acquiring images...')
     
-#    pr = cProfile.Profile()
-#    pr.enable()
+    pr = cProfile.Profile()
+    pr.enable()
     
     queue = multiprocessing.Queue()
     recording_queue = multiprocessing.Queue()
@@ -320,9 +359,9 @@ if __name__ == '__main__':
     p.join()
     vid_rec_p.join()
     
-#    pr.disable()
-#    s = io.StringIO()
-#    sortby = SortKey.CUMULATIVE
-#    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-#    ps.print_stats()
-#    print(s.getvalue())
+    pr.disable()
+    s = io.StringIO()
+    sortby = SortKey.CUMULATIVE
+    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    ps.print_stats()
+    logger.info(s.getvalue())

@@ -14,11 +14,10 @@ def generate_row_col(shape_of_rows):
         for col_num in range(item):
             yield row_num, col_num
 
-def sort_contours_by_area(contours, frame_count, time, diff, mask, shape_of_rows, cell_contours, cell_centers):
+def sort_contours_by_area(contours, last_confident_centroid, frame_count, time, diff, mask, shape_of_rows, cell_contours, cell_centers):
     # darkest_pixel_val = 255
     posns = [[[] for j in range(shape_of_rows[i])] for i in
              range(len(shape_of_rows))]
-    last_confident_centroid = [[cell_centers[i][j] for j in range(shape_of_rows[i])] for i in range(len(shape_of_rows))]
     sorted_contours = []
 
     # print(shape_of_rows)

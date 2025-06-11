@@ -304,7 +304,9 @@ class PoolRun:
                         correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
                         uy_squared = uy * uy
                         vy = cov_norm * (uyy - uy_squared)
-    
+                        
+                        last_confident_centroid = [[cell_centers[i][j] for j in range(shape_of_rows[i])] for i in range(len(shape_of_rows))]
+
                         #pr = cProfile.Profile()
                         #pr.enable()
     
@@ -347,7 +349,7 @@ class PoolRun:
                     contours = contours[0] if len(contours) == 2 else contours[1]
                     #print("len contours", len(contours))
 
-                    sorted_contours = sort_contours_by_area(contours, frame_counter, time, diff, contour_mask, shape_of_rows, cell_contours, cell_centers)
+                    sorted_contours = sort_contours_by_area(contours, last_confident_centroid, frame_counter, time, diff, contour_mask, shape_of_rows, cell_contours, cell_centers)
                     
                     detected_centroids.extend(sorted_contours)
                     #print(sorted_contours)
