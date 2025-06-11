@@ -276,19 +276,20 @@ class PoolRun:
 
                 arr_time = str(timer.formatted_time(timer.now())).strip("[]").split(", ")
                 time = "_".join(arr_time)
-                logger.info(time, img_queue.qsize())
+                logger.info(time)
+                logger.info(img_queue.qsize())
 
                 #print(time)
-                if (36 <= int(arr_time[1]) <= 38 and not r.found_mode) or (r.mode_noblur_img is None):
+                if (0 <= int(arr_time[1]) <= 10 and not r.found_mode) or (r.mode_noblur_img is None):
                     #print('finding mode')
                     r.find_mode(frame_counter, image)
-                elif arr_time[1] == 39:
+                elif arr_time[1] == 16:
                     r.found_mode = False
                     
                 if r.mode_noblur_img is not None:
                     if not r.setup:
                         print('setting up')
-                        mode_noblur_img = mode_noblur_img.astype(np.float64, copy=False)
+                        mode_noblur_img = r.mode_noblur_img.astype(np.float64, copy=False)
                         masked_mode_noblur_img = cv2.bitwise_and(
                             mode_noblur_img, mode_noblur_img, mask=contour_mask)
                         masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
@@ -346,7 +347,7 @@ class PoolRun:
                     contours = contours[0] if len(contours) == 2 else contours[1]
                     #print("len contours", len(contours))
 
-                    sorted_contours = sort_contours_by_area(contours, frame_counter, time, diff, r.mask, shape_of_rows, cell_contours, cell_centers)
+                    sorted_contours = sort_contours_by_area(contours, frame_counter, time, diff, contour_mask, shape_of_rows, cell_contours, cell_centers)
                     
                     detected_centroids.extend(sorted_contours)
                     #print(sorted_contours)

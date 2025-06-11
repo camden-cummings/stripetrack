@@ -38,15 +38,12 @@ class ModeFinder:
             self.movie_deq.append(image)
         elif len(self.movie_deq) >= DESIRED_MODE_FRAMES and run_once == True:
             print("2 - ")
-            print("run once", run_once)
             pool = Pool(processes=1)
             self.async_result = pool.apply_async(calc_mode, (self.movie_deq, self.FRAME_HEIGHT, self.FRAME_WIDTH))
             #mode_noblur_img = calc_mode(movie_deq, FRAME_HEIGHT, FRAME_WIDTH)
             
             run_once = False
        
-        if self.async_result is not None:
-            print("asnc", self.async_result.ready())
         if self.async_result is not None and self.async_result.ready():
             print("3 - ")
             self.prev_mode_noblur_img = self.mode_noblur_img
@@ -62,7 +59,7 @@ class ModeFinder:
 
 
             run_once = True
-            print("4")
+            print("4 -")
             #self.gui.mode_calculated = True
             #self.gui.rt_tracker.standard_image_noise = self.gui.rt_tracker.CV_image_noise_light_background(self.mode_noblur_img)
             #dpg.configure_item(self.gui.status, default_value="Status: Ready")
