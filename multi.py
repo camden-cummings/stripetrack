@@ -10,7 +10,7 @@ import dearpygui.dearpygui as dpg
 
 from camera_helpers import setup_nodemap, set_node_acquisition_mode, get_image
 from gui_helpers import GUIHelpers
-from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_, setup as ssim_setup
+from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_, normalize_diff, setup as ssim_setup
 from sort_contours_by_area import sort_contours_by_area
 
 
@@ -27,7 +27,7 @@ import pandas as pd
 
 import serial
 
-fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-11-25\\"
+fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-16-25\\"
 
 import logging
 
@@ -116,7 +116,7 @@ class GUIPoolRun(PoolRun):
         output_filepath =  f'{fn_start}pre-processed.csv'
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH))
-
+    
         while not done.is_set():    
 #            try:
             logger.info(img_queue.qsize())
@@ -158,13 +158,15 @@ class GUIPoolRun(PoolRun):
                         r.mode_updated = False
                         # dpg.configure_item(gui.status, "Ready")
                 
+                pr = cProfile.Profile()
+                pr.enable()
+                
                 time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
                 
                 masked_curr_img = cv2.bitwise_and(
                     image, image, mask=mask)
                 masked_curr_img = masked_curr_img.astype(np.float64, copy=False)
                 
-                """
                 correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
                 correlate1d_y(ux_tmp, weights, ux)  # , curr_scipy)
 
@@ -173,8 +175,8 @@ class GUIPoolRun(PoolRun):
                 
                 correlate1d_x(masked_curr_img * masked_mode_noblur_img, weights, uxy_tmp)  # , curr_scipy)
                 correlate1d_y(uxy_tmp, weights, uxy)  # , curr_scipy)
-                """
                 
+                """
                 correlate1d_x(prev_masked_img, weights, uy_tmp)  # , curr_scipy)
                 correlate1d_y(uy_tmp, weights, uy)  # , curr_scipy)
                 
@@ -190,17 +192,23 @@ class GUIPoolRun(PoolRun):
                 correlate1d_x(masked_curr_img * prev_masked_img, weights, uxy_tmp)  # , curr_scipy)
                 correlate1d_y(uxy_tmp, weights, uxy)  # , curr_scipy)
                 
+                
                 prev_masked_img = masked_curr_img
-                #print(ux, uy, uxx, uyy, uxy, )
-                #diff = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
                 diff = run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
-                                
+
+                """
+                
+                #print(ux, uy, uxx, uyy, uxy, )
+                diff = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
+                diff = normalize_diff(diff)
+     
+                """
                 diff[diff > 1] = 1
                 diff[diff < 0] = 0
                 
                 diff *= 255
                 diff = diff.astype("uint8")
-                
+                """
                 thresh_img = cv2.threshold(diff, 155, 255, cv2.THRESH_BINARY)[1]
                 contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                 contours = contours[0] if len(contours) == 2 else contours[1]
@@ -227,6 +235,13 @@ class GUIPoolRun(PoolRun):
                     #print("saving")
                     self.save_centroids_to_csv(output_filepath, detected_centroids)
 
+                pr.disable()
+                s = io.StringIO()
+                sortby = SortKey.CUMULATIVE
+                ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                ps.print_stats()
+                logger.info(s.getvalue())
+            
             data = np.flip(image_data, 2)
             data = data.ravel()
             data = np.asfarray(data, dtype='f')
@@ -250,7 +265,8 @@ class GUIPoolRun(PoolRun):
             
             if gui.start_recording:
                 start_recording.set()
-                    
+            
+
             #except Exception as e:
                 #print(e)
             #    logger.error(f"gui failed because: {e}")

@@ -3,7 +3,7 @@ import numpy as np
 import math
 import scipy.ndimage as ndi
 
-height, width = (1200, 1760)
+height, width = (660, 992)
 
 
 def generate_weights(ndim, sigma=1.5, truncate=3.5):

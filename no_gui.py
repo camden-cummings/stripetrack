@@ -23,12 +23,12 @@ import serial
 
 from tracker.roi_manip import convert_to_contours
 
-from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, setup as ssim_setup
+from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_, normalize_diff, setup as ssim_setup
 from sort_contours_by_area import sort_contours_by_area
 
 import os
 
-fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-11-25\\"
+fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-16-25\\"
 
 import logging
 
@@ -222,7 +222,7 @@ class PoolRun:
         #dpg.show_viewport()
         #with open(f"{fn_start}\\zebrafish-tracker-full-restart.cells", 'rb') as filename:
         #    cell_contours = pickle.load(filename)
-        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker-6-10.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
+        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker-5-22-25-realrun.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
         r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)
            
@@ -254,20 +254,23 @@ class PoolRun:
 
         ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT)
         
-        diff = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
+        diff = run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
         correlate1d_x(image, weights, uyy_tmp)  # , curr_scipy)
         correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
         
         detected_centroids = []
-        #pr = cProfile.Profile()
-        #pr.enable()
-        
+
         FRAMES_TO_SAVE_AFTER = 1800
         output_filepath =  f'{fn_start}pre-processed.csv'
         
+        prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH))
+
         while not done.is_set():
             try:
+                pr = cProfile.Profile()
+                pr.enable()
+                
                 image = img_queue.get()
                 image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
@@ -316,7 +319,8 @@ class PoolRun:
                     masked_curr_img = cv2.bitwise_and(
                         image, image, mask=contour_mask)
                     masked_curr_img = masked_curr_img.astype(np.float64, copy=False)
-
+                    
+                    
                     correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
                     correlate1d_y(ux_tmp, weights, ux)  # , curr_scipy)
 
@@ -326,15 +330,35 @@ class PoolRun:
                     correlate1d_x(masked_curr_img * masked_mode_noblur_img, weights, uxy_tmp)  # , curr_scipy)
                     correlate1d_y(uxy_tmp, weights, uxy)  # , curr_scipy)
                     
-                    #print(ux, uy, uxx, uyy, uxy, )
-                    diff = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
-                                    
+                    
+                    """
+                    correlate1d_x(prev_masked_img, weights, uy_tmp)  # , curr_scipy)
+                    correlate1d_y(uy_tmp, weights, uy)  # , curr_scipy)
+                    
+                    correlate1d_x(prev_masked_img * prev_masked_img, weights, uyy_tmp)  # , curr_scipy)
+                    correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
+                    
+                    correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
+                    correlate1d_y(ux_tmp, weights, ux)  # , curr_scipy)
+
+                    correlate1d_x(masked_curr_img * masked_curr_img, weights, uxx_tmp)  # , curr_scipy)
+                    correlate1d_y(uxx_tmp, weights, uxx)  # , curr_scipy)
+                    
+                    correlate1d_x(masked_curr_img * prev_masked_img, weights, uxy_tmp)  # , curr_scipy)
+                    correlate1d_y(uxy_tmp, weights, uxy)  # , curr_scipy)
+                    
+                    prev_masked_img = masked_curr_img
+                    """
+#                    diff = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
+                    diff = run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)                  
+                    diff = normalize_diff(diff)
+                    """
                     diff[diff > 1] = 1
                     diff[diff < 0] = 0
                     
                     diff *= 255
                     diff = diff.astype("uint8")
-   
+                    """
                     """
                     # interesting idea but not for right now
                     if len(diff[diff<0]) > 0:
@@ -370,12 +394,12 @@ class PoolRun:
                 frame_counter += 1
                 #print(timer.now())
         
-                #pr.disable()
-                #s = io.StringIO()
-                #sortby = SortKey.CUMULATIVE
-                #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-                #ps.print_stats()
-                #print(s.getvalue())
+                pr.disable()
+                s = io.StringIO()
+                sortby = SortKey.CUMULATIVE
+                ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                ps.print_stats()
+                print(s.getvalue())
 
             except Exception as e:
                 #print(e)
