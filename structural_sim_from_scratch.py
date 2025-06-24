@@ -1,4 +1,5 @@
 import numba as nb
+from numba import float64
 import numpy as np
 import math
 import scipy.ndimage as ndi
@@ -17,11 +18,11 @@ def generate_weights(ndim, sigma=1.5, truncate=3.5):
 
 
 def setup(frame_width, frame_height):
-    ux = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
-    uy = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
-    uxx = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
-    uyy = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
-    uxy = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
+    ux = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float64))
+    uy = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float64))
+    uxx = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float64))
+    uyy = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float64))
+    uxy = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float64))
 
     return ux, uy, uxx, uyy, uxy
 
@@ -51,12 +52,12 @@ def run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy):
 #@nb.guvectorize([(float64, int64, float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:])], '(),(),(m,n),(m,n),(m,n),(m,n),(m,n)->(m,n)', nopython=True, target='cuda')
 @nb.njit(parallel=True, fastmath=True)
 def run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
-    ux_squared = ux * ux
-    uy_squared = uy * uy
-    ux_uy = ux * uy
-    vx = cov_norm * (uxx - ux_squared)
-    vxy = cov_norm * (uxy - ux_uy)
-    vy = cov_norm * (uyy - uy_squared)
+    ux_squared = np.multiply(ux, ux)
+    uy_squared = np.multiply(uy, uy)
+    ux_uy = np.multiply(ux, uy)
+    vx = np.multiply(cov_norm, (uxx - ux_squared))
+    vxy = np.multiply(cov_norm, (uxy - ux_uy))
+    vy = np.multiply(cov_norm, (uyy - uy_squared))
 
     C1 = (0.01 * data_range) ** 2
     C2 = (0.03 * data_range) ** 2
@@ -80,7 +81,7 @@ def normalize_diff(diff):
             elif diff[x][y] < 0:
                 diff[x][y] = 0
 
-            diff[x][y] = 255 * diff[x][y]
+            diff[x][y] *= 255
 
     diff = diff.astype("uint8")
     return diff
@@ -107,7 +108,6 @@ def correlate1d_x(input, weights, output):
                 total_neighbour += (new_arr[n + x] + new_arr[n - x]) * weights[size1 + x]
             output[start][jj] = total_neighbour
 
-
 @nb.njit(parallel=True, fastmath=True)
 def correlate1d_y(input, weights, output):
     weight_size = len(weights)
@@ -127,3 +127,27 @@ def correlate1d_y(input, weights, output):
             for x in range(1, size1 + 1):
                 total_neighbour += (new_arr[n + x] + new_arr[n - x]) * weights[size1 + x]
             output[ii][start] = total_neighbour
+
+@nb.njit(parallel=True, fastmath=True)
+def correlate1d_x_r(rearr, weights, output, width, height):
+    weight_size = len(weights)
+    size1 = math.floor(weight_size / 2)
+
+    for start in nb.prange(height):
+        end = start+weight_size
+        new_arr = rearr[start:end].transpose()
+        #print("x",new_arr.shape)
+        np.dot(new_arr, weights, output[start])
+
+
+@nb.njit(parallel=True, fastmath=True)
+def correlate1d_y_r(rearr, weights, width, height, output):
+    weight_size = len(weights)
+#    size1 = math.floor(weight_size / 2)
+#    size2 = weight_size - size1 - 1
+
+    for start in nb.prange(width):
+        end = start+weight_size
+#        new_arr = rearr[:, start:end]
+        
+        np.dot(rearr[:, start:end], weights, output[start])
