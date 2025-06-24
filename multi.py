@@ -13,7 +13,7 @@ from gui_helpers import GUIHelpers
 from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_, normalize_diff, setup as ssim_setup
 from sort_contours_by_area import sort_contours_by_area
 
-
+import numba as nb
 from precise_time import PreciseTime
 
 from mode_finder import ModeFinder
@@ -27,7 +27,7 @@ import pandas as pd
 
 import serial
 
-fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-16-25\\"
+fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-24-25\\"
 
 import logging
 
@@ -66,6 +66,7 @@ class GUIPoolRun(PoolRun):
   #  @profile
     def gui_pool(self, img_queue, done, start_recording):
         logger.info("start gui pool")
+        print(nb.config.NUMBA_NUM_THREADS)
         dpg.create_context()
         window = dpg.add_window(label="Video player", pos=(50, 50), width=self.FRAME_WIDTH, height=self.FRAME_HEIGHT) 
         gui = GUIHelpers(window, self.FRAME_WIDTH, self.FRAME_HEIGHT)
@@ -234,6 +235,7 @@ class GUIPoolRun(PoolRun):
                 if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(detected_centroids) > 0:
                     #print("saving")
                     self.save_centroids_to_csv(output_filepath, detected_centroids)
+                    detected_centroids.clear()
 
                 pr.disable()
                 s = io.StringIO()
