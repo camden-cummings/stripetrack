@@ -10,9 +10,9 @@ import dearpygui.dearpygui as dpg
 
 from camera_helpers import setup_nodemap, set_node_acquisition_mode, get_image
 from gui_helpers import GUIHelpers
-from structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_, normalize_diff, setup as ssim_setup
+from structural_sim_from_scratch import correlate1d_x, correlate1d_y, correlate1d_y_r, correlate1d_x_r, run_math, run_math_, normalize_diff, setup as ssim_setup
 from sort_contours_by_area import sort_contours_by_area
-
+import math
 
 from precise_time import PreciseTime
 
@@ -97,8 +97,11 @@ class GUIPoolRun(PoolRun):
         ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_WIDTH,self.FRAME_HEIGHT) # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
         
         weights = [0.00102838, 0.00759876, 0.03600077, 0.10936069, 0.21300554, 0.26601172,
-                   0.21300554, 0.10936069, 0.03600077, 0.00759876, 0.00102838]        
-        
+                   0.21300554, 0.10936069, 0.03600077, 0.00759876, 0.00102838]
+        weight_size = len(weights)
+        size1 = math.floor(weight_size / 2)
+        size2 = weight_size - size1 - 1
+
         np_weights = np.asarray(weights)
 
         ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT)
@@ -106,9 +109,9 @@ class GUIPoolRun(PoolRun):
         diff = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
         image = img_queue.get()
-
-        correlate1d_x(image, weights, uyy_tmp)  # , curr_scipy)
-        correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
+        rearr = np.concatenate((image[0:size1][::-1], image, image[-size2:][::-1]))
+        correlate1d_x_r(rearr, weights, uyy_tmp)  # , curr_scipy)
+        correlate1d_y_r(uyy_tmp, weights, uyy)  # , curr_scipy)
         
         detected_centroids = []
         
@@ -142,11 +145,14 @@ class GUIPoolRun(PoolRun):
                     masked_mode_noblur_img = cv2.bitwise_and(
                         mode_noblur_img, mode_noblur_img, mask=mask)
                     masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
-                    
-                    correlate1d_x(masked_mode_noblur_img, weights, uy_tmp)  # , curr_scipy)
+
+                    rearr = np.concatenate((masked_mode_noblur_img[0:size1][::-1], masked_mode_noblur_img, masked_mode_noblur_img[-size2:][::-1]))
+                    correlate1d_x_r(rearr, weights, uy_tmp)  # , curr_scipy)
                     correlate1d_y(uy_tmp, weights, uy)  # , curr_scipy)
-                    
-                    correlate1d_x(masked_mode_noblur_img * masked_mode_noblur_img, weights, uyy_tmp)  # , curr_scipy)
+
+                    inp = masked_mode_noblur_img * masked_mode_noblur_img
+                    rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
+                    correlate1d_x_r(rearr, weights, uyy_tmp)  # , curr_scipy)
                     correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
                     uy_squared = uy * uy
                     vy = cov_norm * (uyy - uy_squared)
@@ -166,14 +172,19 @@ class GUIPoolRun(PoolRun):
                 masked_curr_img = cv2.bitwise_and(
                     image, image, mask=mask)
                 masked_curr_img = masked_curr_img.astype(np.float64, copy=False)
-                
-                correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
+
+                rearr = np.concatenate((masked_curr_img[0:size1][::-1], masked_curr_img, masked_curr_img[-size2:][::-1]))
+                correlate1d_x_r(rearr, weights, ux_tmp)  # , curr_scipy)
                 correlate1d_y(ux_tmp, weights, ux)  # , curr_scipy)
 
-                correlate1d_x(masked_curr_img * masked_curr_img, weights, uxx_tmp)  # , curr_scipy)
+                inp = masked_curr_img * masked_curr_img
+                rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
+                correlate1d_x_r(rearr, weights, uxx_tmp)  # , curr_scipy)
                 correlate1d_y(uxx_tmp, weights, uxx)  # , curr_scipy)
-                
-                correlate1d_x(masked_curr_img * masked_mode_noblur_img, weights, uxy_tmp)  # , curr_scipy)
+
+                inp = masked_curr_img * masked_mode_noblur_img
+                rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
+                correlate1d_x_r(rearr, weights, uxy_tmp)  # , curr_scipy)
                 correlate1d_y(uxy_tmp, weights, uxy)  # , curr_scipy)
                 
                 """

@@ -1,4 +1,5 @@
 import numba as nb
+from numba import float64
 import numpy as np
 import math
 import scipy.ndimage as ndi
@@ -107,7 +108,6 @@ def correlate1d_x(input, weights, output):
                 total_neighbour += (new_arr[n + x] + new_arr[n - x]) * weights[size1 + x]
             output[start][jj] = total_neighbour
 
-
 @nb.njit(parallel=True, fastmath=True)
 def correlate1d_y(input, weights, output):
     weight_size = len(weights)
@@ -127,3 +127,29 @@ def correlate1d_y(input, weights, output):
             for x in range(1, size1 + 1):
                 total_neighbour += (new_arr[n + x] + new_arr[n - x]) * weights[size1 + x]
             output[ii][start] = total_neighbour
+
+@nb.njit(parallel=True, fastmath=True)
+def correlate1d_x_r(rearr, weights, output, width, height):
+    weight_size = len(weights)
+    size1 = math.floor(weight_size / 2)
+
+    for start in nb.prange(height):
+        end = start+weight_size
+        new_arr = rearr[start:end].transpose()
+        #print("x",new_arr.shape)
+        output[start] = np.dot(new_arr, weights)
+
+
+@nb.njit(parallel=True, fastmath=True)
+def correlate1d_y_r(input, weights, width, height, output):
+    weight_size = len(weights)
+    size1 = math.floor(weight_size / 2)
+    size2 = weight_size - size1 - 1
+
+    rearr = np.concatenate((input[:, 0:size1][:, ::-1], input, input[:, -size2:][:, ::-1]), axis=1) # something in the construction of this is wrong but I can't figure out what
+
+    for start in nb.prange(width):
+        end = start+weight_size
+        new_arr = rearr[:, start:end]
+
+        output[start] = np.dot(new_arr, weights)
