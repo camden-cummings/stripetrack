@@ -81,12 +81,10 @@ def run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     C1 = (0.01 * data_range) ** 2
     C2 = (0.03 * data_range) ** 2
 
-    A1, A2, B1, B2 = (
-        2 * ux_uy + C1,
-        2 * vxy + C2,
-        ux_squared + uy_squared + C1,
-        vx + vy + C2,
-    )
+    A1 = 2 * ux_uy + C1
+    A2 = 2 * vxy + C2
+    B1 = ux_squared + uy_squared + C1
+    B2 = vx + vy + C2
 
     return (A1 * A2) / (B1 * B2)
 

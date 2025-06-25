@@ -196,8 +196,8 @@ class GUIPoolRun(PoolRun):
                         r.mode_updated = False
                         # dpg.configure_item(gui.status, "Ready")
                 
-                pr = cProfile.Profile()
-                pr.enable()
+                #pr = cProfile.Profile()
+                #pr.enable()
                 
                 time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
                 
@@ -303,12 +303,12 @@ class GUIPoolRun(PoolRun):
                     self.save_centroids_to_csv(output_filepath, detected_centroids)
                     detected_centroids.clear()
 
-                pr.disable()
-                s = io.StringIO()
-                sortby = SortKey.CUMULATIVE
-                ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-                ps.print_stats()
-                logger.info(s.getvalue())
+                #pr.disable()
+                #s = io.StringIO()
+                #sortby = SortKey.CUMULATIVE
+                #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                #ps.print_stats()
+                #logger.info(s.getvalue())
             
             data = np.flip(image_data, 2)
             data = data.ravel()

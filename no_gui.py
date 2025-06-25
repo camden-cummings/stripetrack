@@ -254,14 +254,14 @@ class PoolRun:
         size1 = math.floor(weight_size / 2)
         size2 = weight_size - size1 - 1
 
-        np_weights = np.asarray(weights, dtype=np.float64)
+        np_weights = np.asarray(weights, dtype=np.float32)
 
         ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT)
         
         diff = run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
-
+        
         rearr = np.concatenate((image[0:size1][::-1], image, image[-size2:][::-1]))
-        rearr = rearr.astype(dtype=np.float64)
+        rearr = rearr.astype(dtype=np.float32)
         correlate1d_x_r(rearr, np_weights, uyy_tmp, self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
         T = uyy_tmp.transpose()
         rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
@@ -272,7 +272,7 @@ class PoolRun:
         FRAMES_TO_SAVE_AFTER = 1800
         output_filepath =  f'{fn_start}pre-processed.csv'
         
-        prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH))
+        prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32)
 
         while not done.is_set():
             try:
@@ -297,10 +297,10 @@ class PoolRun:
                 if r.mode_noblur_img is not None:
                     if r.mode_updated:
                         print('setting up')
-                        mode_noblur_img = r.mode_noblur_img.astype(np.float64, copy=False)
+                        mode_noblur_img = r.mode_noblur_img.astype(np.float32, copy=False)
                         masked_mode_noblur_img = cv2.bitwise_and(
                             mode_noblur_img, mode_noblur_img, mask=contour_mask)
-                        masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float64, copy=False)
+                        masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float32, copy=False)
                         r.mode_updated = False
                         
                         """
@@ -330,7 +330,7 @@ class PoolRun:
                     
                     masked_curr_img = cv2.bitwise_and(
                         image, image, mask=contour_mask)
-                    masked_curr_img = masked_curr_img.astype(np.float64, copy=False)
+                    masked_curr_img = masked_curr_img.astype(np.float32, copy=False)
                     
                     """
                     correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
@@ -350,7 +350,6 @@ class PoolRun:
                     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
                     correlate1d_y_r(rearr, np_weights, self.FRAME_WIDTH, self.FRAME_HEIGHT, uy)  # , curr_scipy)
                     
-                                    
                     inp = prev_masked_img * prev_masked_img
                     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
                     correlate1d_x_r(rearr, np_weights, uyy_tmp,self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
