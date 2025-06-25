@@ -18,11 +18,11 @@ def generate_weights(ndim, sigma=1.5, truncate=3.5):
 
 
 def setup(frame_width, frame_height):
-    ux = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float64))
-    uy = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float64))
-    uxx = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float64))
-    uyy = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float64))
-    uxy = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float64))
+    ux = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float32))
+    uy = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float32))
+    uxx = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float32))
+    uyy = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float32))
+    uxy = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float32))
 
     return ux, uy, uxx, uyy, uxy
 
@@ -145,9 +145,7 @@ def correlate1d_y_r(rearr, weights, width, height, output):
     weight_size = len(weights)
 #    size1 = math.floor(weight_size / 2)
 #    size2 = weight_size - size1 - 1
-
     for start in nb.prange(width):
         end = start+weight_size
 #        new_arr = rearr[:, start:end]
-        
-        np.dot(rearr[:, start:end], weights, output[start])
+        np.dot(weights, rearr[start:end], output[start])
