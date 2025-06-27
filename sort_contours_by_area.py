@@ -14,7 +14,7 @@ def generate_row_col(shape_of_rows):
         for col_num in range(item):
             yield row_num, col_num
 
-def sort_contours_by_area(contours, last_confident_centroid, frame_count, time, diff, mask, shape_of_rows, cell_contours, cell_centers):
+def sort_contours_by_area(contours, last_confident_centroid, frame_count, time, diff, mask, shape_of_rows, cell_contours, cell_centers, min_thresh):
     # darkest_pixel_val = 255
     posns = [[[] for j in range(shape_of_rows[i])] for i in
              range(len(shape_of_rows))]
@@ -26,7 +26,7 @@ def sort_contours_by_area(contours, last_confident_centroid, frame_count, time, 
         # a well, and that we know which one it is in)
 
         # contours = [c for c in contours if self.gui.contour_definer.centroid_size < cv2.contourArea(c) < 500000]
-        if 50 < cv2.contourArea(c) < 500000:
+        if min_thresh < cv2.contourArea(c) < 500000:
             x, y, w, h = cv2.boundingRect(c)
 
             point_x, point_y = (int(x + w / 2), int(y + h / 2))  # not as exact as find_centroid_of_contour, but faster

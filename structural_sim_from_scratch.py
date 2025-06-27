@@ -17,12 +17,12 @@ def generate_weights(ndim, sigma=1.5, truncate=3.5):
     return weights, cov_norm
 
 
-def setup(frame_width, frame_height):
-    ux = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float32))
-    uy = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float32))
-    uxx = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float32))
-    uyy = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float32))
-    uxy = np.ascontiguousarray(np.zeros((frame_height, frame_width), dtype=np.float32))
+def setup(frame_width, frame_height, order):
+    ux = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
+    uy = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
+    uxx = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
+    uyy = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
+    uxy = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
 
     return ux, uy, uxx, uyy, uxy
 
@@ -146,23 +146,15 @@ def correlate1d_y(input, weights, output):
             output[ii][start] = total_neighbour
 
 @nb.njit(parallel=True, fastmath=True)
-def correlate1d_x_r(rearr, weights, output, width, height):
-    weight_size = len(weights)
-    size1 = math.floor(weight_size / 2)
-
+def correlate1d_x_r(rearr, weights, weight_size, output, width, height):    
     for start in nb.prange(height):
         end = start+weight_size
         new_arr = rearr[start:end].transpose()
-        #print("x",new_arr.shape)
         np.dot(new_arr, weights, output[start])
 
 
 @nb.njit(parallel=True, fastmath=True)
-def correlate1d_y_r(rearr, weights, width, height, output):
-    weight_size = len(weights)
-#    size1 = math.floor(weight_size / 2)
-#    size2 = weight_size - size1 - 1
+def correlate1d_y_r(rearr, weights, weight_size, width, height, output):
     for start in nb.prange(width):
         end = start+weight_size
-#        new_arr = rearr[:, start:end]
         np.dot(weights, rearr[start:end], output[start])
