@@ -1,32 +1,26 @@
-from multiprocessing import Process
+import cProfile
+import gc
+import io
+import math
 import multiprocessing
-import cProfile, pstats, io
+import pstats
+from multiprocessing import Process
 from pstats import SortKey
 
 import PySpin
 import cv2
-import numpy as np
 import dearpygui.dearpygui as dpg
-
-from camera_helpers import setup_nodemap, set_node_acquisition_mode, get_image
-from gui_helpers import GUIHelpers
-from structural_sim_from_scratch import correlate1d_x, correlate1d_y, correlate1d_y_r, correlate1d_x_r, run_math, run_math_, normalize_diff, setup as ssim_setup
-from sort_contours_by_area import sort_contours_by_area
-
-import math
-
-from precise_time import PreciseTime
-
-from mode_finder import ModeFinder
-from command_reader import process_command_string
-
-from no_gui import PoolRun
-
-import gc
-
+import numpy as np
 import pandas as pd
-
 import serial
+
+from command_reader import process_command_string
+from gui_helpers import GUIHelpers
+from mode_finder import ModeFinder
+from no_gui import PoolRun
+from precise_time import PreciseTime
+from sort_contours_by_area import sort_contours_by_area
+from structural_sim_from_scratch import correlate1d_y_r, correlate1d_x_r, run_math, normalize_diff, setup as ssim_setup
 
 # do this through GUI instead
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-27-25-test\\"

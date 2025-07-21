@@ -15,7 +15,7 @@ from scipy.ndimage import correlate1d as correlate1d_scipy
 
 #from skimage.metrics import structural_similarity
 #from structural_sim import structural_similarity
-from structural_sim_from_scratch import setup, generate_weights#, correlate1d_x, correlate1d_y
+from structural_sim_from_scratch import setup, generate_weights, correlate1d_x, correlate1d_x_r, correlate1d_y_r, run_math_
 #from numba import int64, float64
 from scipy import ndimage as ndi
 from numbers import Integral
@@ -124,12 +124,12 @@ def tester(matr_to_check, correct_matrix):
             if abs(n - nd) > 0.5:
                 print(n, nd, abs(n - nd))
 
-def vid_runner(vidcap, mode_img, weights, data_range):
+def vid_runner(vidcap, mode_img, weights, data_range, frame_width, frame_height):
     cont, curr_img = vidcap.read()
     curr_img = cv2.cvtColor(curr_img, cv2.COLOR_BGR2GRAY)
 
-    curr_img = curr_img.astype(np.float64, copy=False)
-    mode_img = mode_img.astype(np.float64, copy=False)
+    curr_img = curr_img.astype(np.float32, copy=False)
+    mode_img = mode_img.astype(np.float32, copy=False)
     print(curr_img.shape)
     sigma = 1.5
     truncate = 3.5
@@ -142,9 +142,9 @@ def vid_runner(vidcap, mode_img, weights, data_range):
     C1 = (0.01 * data_range) ** 2 #K = 0.01
     C2 = (0.03 * data_range) ** 2 #K = 0.03
 
-    ux, uy, uxx, uyy, uxy = setup(1200,1760) # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
+    ux, uy, uxx, uyy, uxy = setup(frame_height,frame_width, order="C") # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
     # instead treat it like going in the X direction instead
-    ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = setup(1760, 1200)
+    ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = setup(frame_width, frame_height, order="C")
 
     #correlate1d_x(curr_img, weights, ux_tmp)  # , curr_scipy)
     #correlate1d_y(curr_img, weights, ux)  # , curr_scipy)
@@ -156,27 +156,29 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         axis = 0
         #print("curr")
 
-        height, width = (1200, 1760)
         weight_size = len(weights)
         size1 = math.floor(weight_size / 2)
         size2 = weight_size - size1 - 1
 
-        np_weights = np.array(weights, dtype=np.float64)
+        np_weights = np.array(weights, dtype=np.float32)
         symmetric = 1
 
         pr = cProfile.Profile()
         pr.enable()
-        #curr_scipy = correlate1d_scipy(curr_img, weights, axis=axis, mode="reflect", cval=0.0)
-        #correlate1d_x(curr_img, weights, ux_tmp)
 
+        """
+        #curr_scipy = correlate1d_scipy(curr_img, weights, axis=axis, mode="reflect", cval=0.0)
+        correlate1d_x(curr_img, weights, ux_tmp)
+        print(ux_tmp)
         rearr = np.concatenate((curr_img[0:size1][::-1], curr_img, curr_img[-size2:][::-1]))
+        correlate1d_x_r(rearr, np.array(weights), ux_tmp, width, height)
+        print(ux_tmp)
         rearr = rearr.transpose()
         for start in range(height):  # could end early by checking that all vals in arr are the same in which case will be the value
             # print(start)
             end = start + size1 + size2 + 1
             np.dot(rearr[:, start:end], np_weights, out=ux_tmp[start])
-
-        #correlate1d_y(ux_tmp, weights, ux)#, curr_scipy)
+        print(ux_tmp)
 
         rearr = np.concatenate((ux_tmp[:, 0:size1][:, ::-1], ux_tmp, ux_tmp[:, -size2:][:, ::-1]), axis=1)
 
@@ -279,11 +281,32 @@ def vid_runner(vidcap, mode_img, weights, data_range):
             end = start + size1 + size2 + 1
             np.dot(rearr[:, start:end], np_weights, out=uxy[start])
 
+        """
+
+        rearr = np.concatenate((mode_img[0:size1][::-1], mode_img, mode_img[-size2:][::-1]))
+        correlate1d_x_r(rearr, np_weights, weight_size, uy_tmp, frame_width, frame_height)
+        correlate1d_y_r(uy_tmp, np_weights, weight_size, frame_width, frame_height, uy)
+        inp = mode_img * mode_img
+        rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
+        correlate1d_x_r(rearr, np_weights, weight_size, uyy_tmp, frame_width, frame_height)
+        correlate1d_y_r(uyy_tmp, np_weights, weight_size, frame_width, frame_height, uyy)
+        rearr = np.concatenate((curr_img[0:size1][::-1], curr_img, curr_img[-size2:][::-1]))
+        correlate1d_x_r(rearr, np_weights, weight_size, ux_tmp, frame_width, frame_height)
+        correlate1d_y_r(ux_tmp, np_weights, weight_size, frame_width, frame_height, ux)
+        inp = curr_img * curr_img
+        rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
+        correlate1d_x_r(rearr, np_weights, weight_size, uxx_tmp, frame_width, frame_height)
+        correlate1d_y_r(uxx_tmp, np_weights, weight_size, frame_width, frame_height, uxx)
+        inp = curr_img * mode_img
+        rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
+        correlate1d_x_r(rearr, np_weights, weight_size, uxy_tmp, frame_width, frame_height)
+        correlate1d_y_r(uxy_tmp, np_weights, weight_size, frame_width, frame_height, uxy)
 
         #tester(uxy, cm_scipy)
 
-#        S = run_math(ux, uy, uxx, uyy, uxy)
+        S = run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
+        """
         ux_squared = ux * ux
         uy_squared = uy * uy
         ux_uy = ux * uy
@@ -299,6 +322,7 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         )
 
         S = (A1 * A2) / (B1 * B2)
+        """
 
         #corr_scipy = correlate1d_scipy(curr_img, weights, axis=-1, mode="reflect", cval=0.0)
         #bool_arr = np.round(ux[:, :]) == np.round(corr_scipy[:, :])
@@ -329,7 +353,7 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         cont, curr_img = vidcap.read()
 
         curr_img_store = cv2.cvtColor(curr_img, cv2.COLOR_BGR2GRAY)
-        curr_img = curr_img_store.astype(np.float64, copy=False)
+        curr_img = curr_img_store.astype(np.float32, copy=False)
 
         frame_count += 1
 
@@ -346,14 +370,17 @@ def vid_runner(vidcap, mode_img, weights, data_range):
     #run_math.parallel_diagnostics(level=4)
 
 if __name__ == '__main__':
-    filename = "/home/chamomile/Thyme-lab/data/shortened_vids/6dpf/_2024-02-27-105322-0000-short.avi"
+    filename = "/home/chamomile/Thyme-lab/data/vids/social_and_many_well/to-be-processed/march/fc2_save_2025-03-18-142549-0000.mp4"
     mode_noblur_path = filename[:-4] + "-mode.png"
     mode_noblur_img = cv2.cvtColor(cv2.imread(mode_noblur_path), cv2.COLOR_BGR2GRAY)
 
     vidcap = cv2.VideoCapture(filename)
     weights = generate_weights(2, sigma=1.5, truncate=3.5)[0].tolist()
 
-    vid_runner(vidcap, mode_noblur_img, weights, 255)
+    frame_width = int(vidcap.get(3))
+    frame_height = int(vidcap.get(4))
+
+    vid_runner(vidcap, mode_noblur_img, weights, 255, frame_width, frame_height)
 
 """
 if __name__ == '__main__':

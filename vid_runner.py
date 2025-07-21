@@ -10,6 +10,8 @@ import time
 import cProfile, pstats, io
 from pstats import SortKey
 
+# TODO what is going on with this file - should it be deleted? is it used??
+
 def convert_to_contours(cell_filename):
     if isinstance(cell_filename, str):
         with open(cell_filename, 'rb') as f:
