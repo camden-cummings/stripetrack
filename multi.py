@@ -13,14 +13,13 @@ from gui_helpers import GUIHelpers
 from structural_sim_from_scratch import correlate1d_x, correlate1d_y, correlate1d_y_r, correlate1d_x_r, run_math, run_math_, normalize_diff, setup as ssim_setup
 from sort_contours_by_area import sort_contours_by_area
 
-import numba as nb
 import math
 
 from precise_time import PreciseTime
 
 from mode_finder import ModeFinder
 from command_reader import process_command_string
-import queue
+
 from no_gui import PoolRun
 
 import gc
@@ -29,10 +28,12 @@ import pandas as pd
 
 import serial
 
+# do this through GUI instead
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-27-25-test\\"
 
 import logging
 
+# TODO try memlog to double check
 """
 # create logger
 mem_logger = logging.getLogger('memory_profile_log')
@@ -68,12 +69,11 @@ class GUIPoolRun(PoolRun):
   #  @profile
     def gui_pool(self, img_queue, done, start_recording):
         logger.info("start gui pool")
-        print(nb.config.NUMBA_NUM_THREADS)
+
         dpg.create_context()
         window = dpg.add_window(label="Video player", pos=(50, 50), width=self.FRAME_WIDTH, height=self.FRAME_HEIGHT) 
         gui = GUIHelpers(window, self.FRAME_WIDTH, self.FRAME_HEIGHT)
-        #gui.start()
-        recording = False
+
         timer = PreciseTime()
 
         dpg.set_primary_window(window, True)
@@ -94,10 +94,6 @@ class GUIPoolRun(PoolRun):
         
         data_range = 255
         
-        C1 = (0.01 * data_range) ** 2 #K = 0.01
-        C2 = (0.03 * data_range) ** 2 #K = 0.03
-        
-        
         weights = [0.00102838, 0.00759876, 0.03600077, 0.10936069, 0.21300554, 0.26601172,
                    0.21300554, 0.10936069, 0.03600077, 0.00759876, 0.00102838]
         weight_size = len(weights)
@@ -108,8 +104,7 @@ class GUIPoolRun(PoolRun):
 
         ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT, order='C')
         ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_HEIGHT,self.FRAME_WIDTH,  order='C') # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
-#        ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_WIDTH,self.FRAME_HEIGHT) # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
-        
+
         vy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT), dtype=np.float32, order='C')
         diff = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
@@ -207,7 +202,9 @@ class GUIPoolRun(PoolRun):
                 masked_curr_img = cv2.bitwise_and(
                     image, image, mask=mask)
                 masked_curr_img = masked_curr_img.astype(np.float32, copy=False)
-                                
+
+                # TODO figure out prettier way of doing this - in fnction, time to make sure still fast as
+
                 rearr = np.concatenate((masked_curr_img[0:size1][::-1], masked_curr_img, masked_curr_img[-size2:][::-1]))
                 correlate1d_x_r(rearr, np_weights, weight_size, ux_tmp,self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
                 
@@ -274,8 +271,6 @@ class GUIPoolRun(PoolRun):
                 
                 prev_masked_img = masked_curr_img
 
-                #print(ux, uy, uxx, uyy, uxy, )
-                #print(ux, uy, uxx, vy, uxy)
                 S = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
                 #S = run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)    
                 
@@ -294,8 +289,7 @@ class GUIPoolRun(PoolRun):
                 sorted_contours = sort_contours_by_area(contours, last_confident_centroid, frame_counter, time_, diff, mask, gui.shape_of_rows, gui.cell_contours, gui.cell_centers, gui.contour_definer.centroid_size)
                 
                 detected_centroids.extend(sorted_contours)
-                #print(sorted_contours)
-                
+
                 if gui.contour_definer.cv_method == "Structural Similarity":
                     for time, frame_count, row, col, x, y in sorted_contours:
                         cv2.circle(image_data, (x, y), 1, (0, 0, 255), 5, cv2.LINE_4)
@@ -304,12 +298,9 @@ class GUIPoolRun(PoolRun):
 
                 #cv2.imshow('data', image_data)
 
-                #r.run_CV(frame_counter, time_)
-
                 #cv2.imshow('im', r.curr_img_data)
                 
                 if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(detected_centroids) > 0:
-                    #print("saving")
                     self.save_centroids_to_csv(output_filepath, detected_centroids)
                     detected_centroids.clear()
 
@@ -322,12 +313,11 @@ class GUIPoolRun(PoolRun):
             
             data = np.flip(image_data, 2)
             data = data.ravel()
-            data = np.asfarray(data, dtype='f')
+            data = np.asfarray(data, dtype='f') #TODO fix, add something in pipreqs to make sure numpy >= 2.0
             texture_data = np.true_divide(data, 255.0)
             
             frame_counter += 1
             
-            #print(texture_data.shape)
             if gui.contour_definer.cv_method == "Structural Similarity" or gui.contour_definer.cv_method == "":
                 dpg.set_value("texture_tag", texture_data)
             elif gui.contour_definer.cv_method == "Real Time":
@@ -366,6 +356,7 @@ class GUIPoolRun(PoolRun):
         logger.info("start printer pool")
         while counter < num_of_instructions and not done.is_set():
             try:
+                #TODO decide about start_recording
                 #if start_recording.is_set():
                 if first_time:  # setup all necessary pieces
                     at_time, command_string, type_of_video = process_command_string(
