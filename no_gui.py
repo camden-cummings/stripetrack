@@ -439,7 +439,7 @@ class PoolRun:
         """
 
     @staticmethod
-    def save_centroids_to_csv(self, output_filepath, detected_centroids):
+    def save_centroids_to_csv(output_filepath, detected_centroids):
         if not os.path.exists(output_filepath):
             new = pd.DataFrame(np.matrix(detected_centroids),
                                columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])

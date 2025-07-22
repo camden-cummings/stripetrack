@@ -53,3 +53,4 @@ class ModeFinder:
                 self.found_mode = True
 
             run_once = True
+            

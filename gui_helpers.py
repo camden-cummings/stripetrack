@@ -4,14 +4,15 @@ Created on Tue Feb 18 11:57:57 2025
 
 @author: ThymeLab
 """
-from roi_selector_dearpygui.roi_selector_dearpygui.statemanager import StateManager
 import os
 from pathlib import Path
 
 import dearpygui.dearpygui as dpg
 import numpy as np
-from roi_selector_gui_dpg.gui import GUI
-from roi_selector_gui_dpg.statemanager import StateManager
+
+from roi_selector_dearpygui.roi_selector_dearpygui.statemanager import StateManager
+from roi_selector_dearpygui.roi_selector_dearpygui.gui import GUI
+
 from tracker.roi_manip import convert_to_contours #TODO reorganize tracker & this to be useful and work together well
 
 from contour_definer import ContourDefiner
@@ -31,15 +32,6 @@ class GUIHelpers(GUI):
 
         self.contour_definer = ContourDefiner()
 
-        """ taking out for now, not sure what it needs done
-        # TODO: check how being used actually
-        # min and max allowed centroid area to be considered a potential fish
-        self.min_area = 40
-        self.max_area = 300
-
-        # min length of any contour to be considered a potential fish
-        self.length_req = 40
-        """
         self.cell_contours = []
         self.cell_centers = []
         self.shape_of_rows = []
