@@ -59,6 +59,8 @@ class ModeFinder:
 
             run_once = True
             print("4 -")
+            
+            print("mode looks like", self.mode_noblur_img)
             #self.gui.mode_calculated = True
             #self.gui.rt_tracker.standard_image_noise = self.gui.rt_tracker.CV_image_noise_light_background(self.mode_noblur_img)
             #dpg.configure_item(self.gui.status, default_value="Status: Ready")

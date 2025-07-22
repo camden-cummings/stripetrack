@@ -25,6 +25,7 @@ class GUIHelpers(GUI):
         self.roi, self.line, self.roi_and_line_selection, self.post_line, self.state_manager, self.status = self.setup_elements(
             window)
 
+        """
         # TODO: check how being used actually
         # min and max allowed centroid area to be considered a potential fish
         self.min_area = 40
@@ -32,7 +33,7 @@ class GUIHelpers(GUI):
 
         # min length of any contour to be considered a potential fish
         self.length_req = 40
-
+        """
         self.cell_contours = []
         self.cell_centers = []
         self.shape_of_rows = []
