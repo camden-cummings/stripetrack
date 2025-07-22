@@ -294,7 +294,7 @@ class GUIPoolRun(PoolRun):
                 #S = run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)    
                 
                 diff = S.transpose()
-                diff = normalize_diff(diff)
+                diff = normalize_diff(diff, self.FRAME_WIDTH, self.FRAME_HEIGHT)
                 
                 uy = ux.copy()
                 uy_squared = uy * uy

@@ -1,4 +1,0 @@
-dearpygui
-opencv-python
-numpy
-shapely
