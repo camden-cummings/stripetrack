@@ -4,6 +4,7 @@ Created on Tue Feb 18 11:57:57 2025
 
 @author: ThymeLab
 """
+from roi_selector_dearpygui.roi_selector_dearpygui.statemanager import StateManager
 import os
 from pathlib import Path
 
@@ -16,8 +17,6 @@ from tracker.roi_manip import convert_to_contours #TODO reorganize tracker & thi
 from contour_definer import ContourDefiner
 
 
-# TODO make play nice with newly redone GUI
-
 class GUIHelpers(GUI):
     """"""
 
@@ -25,12 +24,15 @@ class GUIHelpers(GUI):
         self.frame_width = frame_width
         self.frame_height = frame_height
 
+        self.contour_definer = ContourDefiner()
+
         self.roi, self.line, self.roi_and_line_selection, self.post_line, self.state_manager, self.status = self.setup_elements(
             window)
 
         self.contour_definer = ContourDefiner()
 
         """ taking out for now, not sure what it needs done
+        # TODO: check how being used actually
         # min and max allowed centroid area to be considered a potential fish
         self.min_area = 40
         self.max_area = 300

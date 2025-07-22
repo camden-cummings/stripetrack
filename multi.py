@@ -107,7 +107,8 @@ class GUIPoolRun(PoolRun):
         rearr = rearr.astype(dtype=np.float32, order='C')
         correlate1d_x_r(rearr, np_weights, weight_size, uyy_tmp, self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
         T = uyy_tmp.transpose()
-        rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)        
+        rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)   
+        rearr = np.ascontiguousarray(rearr)
         correlate1d_y_r(rearr, np_weights, weight_size, self.FRAME_WIDTH, self.FRAME_HEIGHT, uyy)  # , curr_scipy)
         
         detected_centroids = []
@@ -188,9 +189,7 @@ class GUIPoolRun(PoolRun):
                         r.mode_updated = False
                         # dpg.configure_item(gui.status, "Ready")
                 
-                #pr = cProfile.Profile()
-                #pr.enable()
-                
+
                 time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
                 
                 masked_curr_img = cv2.bitwise_and(
@@ -198,14 +197,40 @@ class GUIPoolRun(PoolRun):
                 masked_curr_img = masked_curr_img.astype(np.float32, copy=False)
 
                 # TODO figure out prettier way of doing this - in fnction, time to make sure still fast as
-
                 rearr = np.concatenate((masked_curr_img[0:size1][::-1], masked_curr_img, masked_curr_img[-size2:][::-1]))
                 correlate1d_x_r(rearr, np_weights, weight_size, ux_tmp,self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
                 
                 T = ux_tmp.transpose()
                 rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+
+                print("op1")
+                pr = cProfile.Profile()
+                pr.enable()
+                
                 correlate1d_y_r(rearr, np_weights, weight_size, self.FRAME_WIDTH, self.FRAME_HEIGHT, ux)  # , curr_scipy)
             
+                pr.disable()
+                s = io.StringIO()
+                sortby = SortKey.CUMULATIVE
+                ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                ps.print_stats()
+                logger.info(s.getvalue())
+                
+                print("op2")
+                pr = cProfile.Profile()
+                pr.enable()
+                
+                rearr = np.ascontiguousarray(rearr)
+                correlate1d_y_r(rearr, np_weights, weight_size, self.FRAME_WIDTH, self.FRAME_HEIGHT, ux)  # , curr_scipy)
+            
+                pr.disable()
+                s = io.StringIO()
+                sortby = SortKey.CUMULATIVE
+                ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                ps.print_stats()
+                logger.info(s.getvalue())
+                
+                
                 inp = masked_curr_img * masked_curr_img
                 rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
                 correlate1d_x_r(rearr, np_weights, weight_size, uxx_tmp,self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
@@ -269,7 +294,7 @@ class GUIPoolRun(PoolRun):
                 #S = run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)    
                 
                 diff = S.transpose()
-                diff = normalize_diff(diff)
+                diff = normalize_diff(diff, self.FRAME_WIDTH, self.FRAME_HEIGHT)
                 
                 uy = ux.copy()
                 uy_squared = uy * uy
@@ -297,13 +322,6 @@ class GUIPoolRun(PoolRun):
                 if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(detected_centroids) > 0:
                     self.save_centroids_to_csv(output_filepath, detected_centroids)
                     detected_centroids.clear()
-
-                #pr.disable()
-                #s = io.StringIO()
-                #sortby = SortKey.CUMULATIVE
-                #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-                #ps.print_stats()
-                #logger.info(s.getvalue())
             
             data = np.flip(image_data, 2)
             data = data.ravel()
