@@ -61,7 +61,7 @@ class GUIPoolRun(PoolRun):
         self.image_data = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT, 3))
 
   #  @profile
-    def gui_pool(self, img_queue, done, start_recording):
+    def tracking_pool(self, img_queue, done, start_recording):
         logger.info("start gui pool")
 
         dpg.create_context()
@@ -426,15 +426,15 @@ if __name__ == '__main__':
     recording_commands_gui, recording_commands_p = multiprocessing.Pipe()
 
     vid_p = Process(target=poolrun.video_pool, args=(queue, done, fps_commands_vid, recording_queue,))
-    gui_p = Process(target=poolrun.gui_pool, args=(queue, done, start_recording, ))
+    tracking_p = Process(target=poolrun.tracking_pool, args=(queue, done, start_recording, ))
     p = Process(target=poolrun.printer_pool, args=(done, start_recording, fps_commands_p, recording_commands_p, ))
     vid_rec_p = Process(target=poolrun.video_recorder_pool, args=(recording_queue, recording_commands_gui, done, ))
     vid_p.start()    
-    gui_p.start()
+    tracking_p.start()
     p.start()
     vid_rec_p.start()
     vid_p.join()
-    gui_p.join()
+    tracking_p.join()
     p.join()
     vid_rec_p.join()
     
