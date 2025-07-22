@@ -1,11 +1,7 @@
 import numba as nb
-from numba import float64
 import numpy as np
 import math
 import scipy.ndimage as ndi
-
-height, width = (660, 992)
-
 
 def generate_weights(ndim, sigma=1.5, truncate=3.5):
     radius = int(truncate * sigma + 0.5)  # radius as in ndimage
@@ -17,12 +13,12 @@ def generate_weights(ndim, sigma=1.5, truncate=3.5):
     return weights, cov_norm
 
 
-def setup(frame_width, frame_height, order):
-    ux = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
-    uy = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
-    uxx = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
-    uyy = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
-    uxy = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
+def setup(width, height, order):
+    ux = np.zeros((height, width), dtype=np.float32, order=order)
+    uy = np.zeros((height, width), dtype=np.float32, order=order)
+    uxx = np.zeros((height, width), dtype=np.float32, order=order)
+    uyy = np.zeros((height, width), dtype=np.float32, order=order)
+    uxy = np.zeros((height, width), dtype=np.float32, order=order)
 
     return ux, uy, uxx, uyy, uxy
 
@@ -90,7 +86,7 @@ def run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
 
 
 @nb.njit(fastmath=True)
-def normalize_diff(diff):
+def normalize_diff(diff, width, height):
     for x in range(height):
         for y in range(width):
             if diff[x][y] > 1:
@@ -105,7 +101,7 @@ def normalize_diff(diff):
 
 
 @nb.njit(parallel=True, fastmath=True)
-def correlate1d_x(input, weights, output):
+def correlate1d_x(input, weights, output, width, height):
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1
@@ -126,7 +122,7 @@ def correlate1d_x(input, weights, output):
             output[start][jj] = total_neighbour
 
 @nb.njit(parallel=True, fastmath=True)
-def correlate1d_y(input, weights, output):
+def correlate1d_y(input, weights, output, width, height):
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1
@@ -145,15 +141,16 @@ def correlate1d_y(input, weights, output):
                 total_neighbour += (new_arr[n + x] + new_arr[n - x]) * weights[size1 + x]
             output[ii][start] = total_neighbour
 
-@nb.njit(parallel=True, fastmath=True)
+#@nb.njit(parallel=True, fastmath=True)
 def correlate1d_x_r(rearr, weights, weight_size, output, width, height):    
     for start in nb.prange(height):
         end = start+weight_size
         new_arr = rearr[start:end].transpose()
+
         np.dot(new_arr, weights, output[start])
 
 
-@nb.njit(parallel=True, fastmath=True)
+#@nb.njit(parallel=True, fastmath=True)
 def correlate1d_y_r(rearr, weights, weight_size, width, height, output):
     for start in nb.prange(width):
         end = start+weight_size

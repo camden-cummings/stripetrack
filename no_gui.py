@@ -1,33 +1,27 @@
-from multiprocessing import Process
+import cProfile
+import gc
+import io
+import math
 import multiprocessing
-import cProfile, pstats, io
+import os
+import pstats
+from multiprocessing import Process
 from pstats import SortKey
 
 import PySpin
 import cv2
-import numpy as np
-
-from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
-
-from precise_time import PreciseTime
-
-from mode_finder import ModeFinder
-from command_reader import process_command_string
-
-import gc
-
-import pandas as pd
-import math
-
 import keyboard
+import numpy as np
+import pandas as pd
 import serial
-
 from tracker.roi_manip import convert_to_contours
 
-from structural_sim_from_scratch import correlate1d_x, correlate1d_x_r, correlate1d_y_r, correlate1d_y, run_math, run_math_, normalize_diff, setup as ssim_setup
+from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
+from command_reader import process_command_string
+from mode_finder import ModeFinder
+from precise_time import PreciseTime
 from sort_contours_by_area import sort_contours_by_area
-
-import os
+from structural_sim_from_scratch import correlate1d_x_r, correlate1d_y_r, run_math_, normalize_diff, setup as ssim_setup
 
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-27-25-test\\"
 
@@ -68,6 +62,7 @@ class PoolRun:
         self.FRAME_WIDTH, self.FRAME_HEIGHT = 992, 660
 
     # @profile
+    # TODO this might be able to be static
     def video_pool(self, img_queue, done, fps_commands, recording_queue):
         #    logger.info("start video pool")
         try:
@@ -112,10 +107,8 @@ class PoolRun:
                     time = timer.now()
                     recording_queue.put([image, time])
 
-                
+                # TODO is this necessary anymore (?)
                 if img_queue.qsize() > 10:
-                    time = timer.now()
-                    #print(img_queue.qsize(), time)
                     while img_queue.qsize() > 2:
                         try:
                             img_queue.get()
@@ -164,10 +157,8 @@ class PoolRun:
 
     #    @profile
     def video_recorder_pool(self, recording_queue, recording_commands, done):
-        cmd_list = []
         start_time = -1
         end_time = -1
-        # counter = 0
 
         while not done.is_set():
             try:
@@ -185,8 +176,6 @@ class PoolRun:
 
                             vid_name = "_".join(str(at_time).strip("[]").split(", ")) + "-" + str(counter)
 
-                            # counter = 0
-
                             if type_of_video == 1:
                                 result = cv2.VideoWriter(f'{fn_start}{vid_name}.avi',
                                                          cv2.VideoWriter_fourcc(*'MJPG'),
@@ -198,39 +187,22 @@ class PoolRun:
 
                 if start_time != -1 and start_time < time < end_time:
                     result.write(image)
-                    # counter += 1
-            #                    logger.info(str(counter))
 
             except Exception as e:
-                #print(e)
                 logger.error(f"video recorder failed at: {e}")
                 logger.error(gc.get_stats())
 
-    #  @profile
 
-    def gui_pool(self, img_queue, done, start_recording):
-        logger.info("start gui pool")
-        #dpg.create_context()
-        #window = dpg.add_window(label="Video player", pos=(50, 50), width=self.FRAME_WIDTH, height=self.FRAME_HEIGHT)
-        #gui = GUIHelpers(window, self.FRAME_WIDTH, self.FRAME_HEIGHT)
-        #gui.start()
-        #recording = False
+    def tracking_pool(self, img_queue, done, start_recording):
+        logger.info("start tracking pool")
         timer = PreciseTime()
 
-        #dpg.set_primary_window(window, True)
-        #dpg.create_viewport(width=int(self.FRAME_WIDTH*1.5), height=self.FRAME_HEIGHT+20, title="ROI Selector")
-        #dpg.setup_dearpygui()
-        #dpg.show_viewport()
-        #with open(f"{fn_start}\\zebrafish-tracker-full-restart.cells", 'rb') as filename:
-        #    cell_contours = pickle.load(filename)
         cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker-6-24-25-realrun.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
         r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)
            
-        # just for testing
         image = img_queue.get()
-        #r.mode_noblur_img=image
-        # --------------------------------------
+
         frame_counter = 0
         
         sigma = 1.5
@@ -242,10 +214,8 @@ class PoolRun:
         cov_norm = NP / (NP - 1)  # sample covariance
         
         data_range = 255
-        
-        C1 = (0.01 * data_range) ** 2 #K = 0.01
-        C2 = (0.03 * data_range) ** 2 #K = 0.03
 
+        # TODO change to generate_weights
         weights = [0.00102838, 0.00759876, 0.03600077, 0.10936069, 0.21300554, 0.26601172,
                    0.21300554, 0.10936069, 0.03600077, 0.00759876, 0.00102838]        
         weight_size = len(weights)
@@ -257,7 +227,7 @@ class PoolRun:
         ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT, order='C')
         ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_HEIGHT, self.FRAME_WIDTH, order='C') # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
 
-        diff = run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
+        run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
         
         rearr = np.concatenate((image[0:size1][::-1], image, image[-size2:][::-1]))
         rearr = rearr.astype(dtype=np.float32)
@@ -278,7 +248,9 @@ class PoolRun:
         while not done.is_set():
             try:
                 image = img_queue.get()
-                image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+
+                # TODO check that this is still working using this & then remove
+                #image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
                 #if cv2.waitKey(1) == 1:
                 #    break
@@ -290,11 +262,11 @@ class PoolRun:
 
                 #print(time)
                 if (0 <= int(arr_time[1]) <= 10 and not r.found_mode) or (r.mode_noblur_img is None):
-                    #print('finding mode')
                     r.find_mode(frame_counter, image)
                 elif arr_time[1] == 11:
                     r.found_mode = False
-                    
+
+                # TODO make clean way to go between mode method & prev2curr method
                 if r.mode_noblur_img is not None:
                     if r.mode_updated:
                         print('setting up')
@@ -322,7 +294,7 @@ class PoolRun:
 
                         #pr = cProfile.Profile()
                         #pr.enable()
-    
+
                     #print(timer.now())
                     #print('tracking')
                     #image = image.astype(np.float64, copy=False)
@@ -344,7 +316,6 @@ class PoolRun:
                     correlate1d_x(masked_curr_img * masked_mode_noblur_img, weights, uxy_tmp)  # , curr_scipy)
                     correlate1d_y(uxy_tmp, weights, uxy)  # , curr_scipy)
                     """
-                    
                     
                     rearr = np.concatenate((prev_masked_img[0:size1][::-1], prev_masked_img, prev_masked_img[-size2:][::-1]))
                     correlate1d_x_r(rearr, np_weights, weight_size, uy_tmp, self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
@@ -436,8 +407,6 @@ class PoolRun:
 
                     #cv2.imshow('data', image_data)
 
-                    #r.run_CV(frame_counter, time_)
-
                     #cv2.imshow('im', r.curr_img_data)
                     
                     if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(detected_centroids) > 0:
@@ -453,12 +422,9 @@ class PoolRun:
                     print(s.getvalue())
 
                 frame_counter += 1
-                #print(timer.now())
-    
 
             except Exception as e:
-                #print(e)
-                logger.error(f"gui failed because: {e}")
+                logger.error(f"tracking failed because: {e}")
                 logger.error(gc.get_stats())
             
         """
@@ -471,13 +437,14 @@ class PoolRun:
         ps.print_stats()
         print(s.getvalue())
         """
+
+    @staticmethod
     def save_centroids_to_csv(self, output_filepath, detected_centroids):
         if not os.path.exists(output_filepath):
             new = pd.DataFrame(np.matrix(detected_centroids),
                                columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
             new.to_csv(output_filepath, sep=',', index=False)
         else:
-            # print('adding on')
             new = pd.DataFrame(np.matrix(detected_centroids),
                                columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
             new.to_csv(output_filepath, sep=',', mode='a', index=False, header=False)
@@ -495,7 +462,6 @@ class PoolRun:
 
         while counter < num_of_instructions and not done.is_set():
             try:
-            #if start_recording.is_set():
                 if first_time:  # setup all necessary pieces
                     at_time, command_string, type_of_video = process_command_string(
                         schedule_times.iloc[counter])
@@ -542,13 +508,11 @@ class PoolRun:
                         dev.write(bytes(command_string, 'utf-8'))
 
                 if timer.now() >= end_time:
-                    # recording_commands.send(["stop"])
                     counter += 1
                     first_time = True
                     end_time = np.inf
 
             except Exception as e:
-                # print(e)
                 logger.error(f"timer failed because: {e}")
                 logger.error(gc.get_stats())
                 #print(f"timer failed because: {e}")
@@ -569,18 +533,18 @@ if __name__ == '__main__':
     done = multiprocessing.Event()
     start_recording = multiprocessing.Event()
     fps_commands_vid, fps_commands_p = multiprocessing.Pipe()
-    recording_commands_gui, recording_commands_p = multiprocessing.Pipe()
+    recording_commands, recording_commands_p = multiprocessing.Pipe()
 
     vid_p = Process(target=poolrun.video_pool, args=(queue, done, fps_commands_vid, recording_queue,))
-    gui_p = Process(target=poolrun.gui_pool, args=(queue, done, start_recording,))
+    tracking_p = Process(target=poolrun.tracking_pool, args=(queue, done, start_recording,))
     p = Process(target=poolrun.printer_pool, args=(done, start_recording, fps_commands_p, recording_commands_p,))
-    vid_rec_p = Process(target=poolrun.video_recorder_pool, args=(recording_queue, recording_commands_gui, done,))
+    vid_rec_p = Process(target=poolrun.video_recorder_pool, args=(recording_queue, recording_commands, done,))
     vid_p.start()
-    gui_p.start()
+    tracking_p.start()
     p.start()
     vid_rec_p.start()
     vid_p.join()
-    gui_p.join()
+    tracking_p.join()
     p.join()
     vid_rec_p.join()
 

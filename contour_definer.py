@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Feb 18 12:02:02 2025
-
-@author: ThymeLab
-"""
+""" """
 
 class ContourDefiner:
     def __init__(self):
@@ -16,11 +11,11 @@ class ContourDefiner:
         # minimum fish centroid size accepted
         self.centroid_size = 70
         
-    def cv_alg_change(self, sender_id, data):
+    def cv_alg_change(self, _, data):
         self.cv_method = data
         
-    def threshold_change(self, sender_id, data):
+    def threshold_change(self, _, data):
         self.thresh = data
         
-    def centroid_change(self, sender_id, data):
+    def centroid_change(self, _, data):
         self.centroid_size = data

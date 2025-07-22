@@ -8,35 +8,32 @@ from pathlib import Path
 from roi_selector_gui_dpg.statemanager import StateManager
 from roi_selector_gui_dpg.gui import GUI
 import dearpygui.dearpygui as dpg
-from tracker.tracker_options.real_time_tracker import RealTimeTracker
 import os
 from contour_definer import ContourDefiner
 from tracker.roi_manip import convert_to_contours
 import numpy as np
 
+# TODO make play nice with newly redone GUI
 
 class GUIHelpers(GUI):
     """"""
 
     def __init__(self, window, frame_width, frame_height):
-        self.contour_definer = ContourDefiner()
-
-        #super().__init__(window)
         self.frame_width = frame_width
         self.frame_height = frame_height
 
         self.roi, self.line, self.roi_and_line_selection, self.post_line, self.state_manager, self.status = self.setup_elements(
             window)
 
+        self.contour_definer = ContourDefiner()
 
+        # TODO: check how being used actually
         # min and max allowed centroid area to be considered a potential fish
         self.min_area = 40
         self.max_area = 300
-        # min length of any contour to be consider a potential fish
-        self.length_req = 40
 
-        #self.rt_tracker = RealTimeTracker([], [1], self.min_area, self.max_area, self.length_req,
-        #                                  np.zeros((frame_height, frame_width)))
+        # min length of any contour to be considered a potential fish
+        self.length_req = 40
 
         self.cell_contours = []
         self.cell_centers = []
@@ -59,9 +56,6 @@ class GUIHelpers(GUI):
                                                                                        self.frame_width,
                                                                                        self.frame_height)
 
-        #self.rt_tracker = RealTimeTracker(cell_contours, shape_of_rows, self.min_area, self.max_area, self.length_req,
-        #                                  contour_mask)
-
         self.contours_updated = True
 
     def tab_callback(self, _, tab_id):
@@ -76,9 +70,6 @@ class GUIHelpers(GUI):
                 self.cell_contours, contour_mask, self.cell_centers, self.shape_of_rows = convert_to_contours(
                     self.state_manager.roi_interface.convert_rois_to_np_array(self.state_manager.roi_interface.rois),
                     self.frame_width, self.frame_height)
-
-                #self.rt_tracker = RealTimeTracker(cell_contours, shape_of_rows, self.min_area, self.max_area,
-                #                                  self.length_req, contour_mask)
 
     def only_selected_contours(self, _, show_only_inside_contours):
         self.show_only_inside_contours = show_only_inside_contours

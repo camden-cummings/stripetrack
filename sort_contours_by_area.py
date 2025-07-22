@@ -1,7 +1,7 @@
 import math
 
 import cv2
-#from tracker.helpers.centroid_manip import check_masked_image, generate_row_col
+
 
 def check_masked_image(centroid, cen_mask):
     if cen_mask[centroid[1]][centroid[0]] == 255.0:
