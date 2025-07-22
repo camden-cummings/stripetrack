@@ -8,6 +8,7 @@ import pstats
 from multiprocessing import Process
 from pstats import SortKey
 
+# TODO add PySpin download instructions to git somewhere
 import PySpin
 import cv2
 import keyboard
@@ -92,7 +93,6 @@ class PoolRun:
             # height.SetValue(100)
             cam.BeginAcquisition()
 
-            recording = False
             count = 1
             count_mod = 9
             while not done.is_set():
@@ -527,6 +527,8 @@ if __name__ == '__main__':
 
     #    pr = cProfile.Profile()
     #    pr.enable()
+
+    #TODO try tossing all into func
 
     queue = multiprocessing.Queue()
     recording_queue = multiprocessing.Queue()

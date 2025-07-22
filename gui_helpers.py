@@ -4,14 +4,18 @@ Created on Tue Feb 18 11:57:57 2025
 
 @author: ThymeLab
 """
-from pathlib import Path
 from roi_selector_dearpygui.roi_selector_dearpygui.statemanager import StateManager
-from roi_selector_dearpygui.roi_selector_dearpygui.gui import GUI
-import dearpygui.dearpygui as dpg
 import os
-from contour_definer import ContourDefiner
-from tracker.roi_manip import convert_to_contours
+from pathlib import Path
+
+import dearpygui.dearpygui as dpg
 import numpy as np
+from roi_selector_gui_dpg.gui import GUI
+from roi_selector_gui_dpg.statemanager import StateManager
+from tracker.roi_manip import convert_to_contours #TODO reorganize tracker & this to be useful and work together well
+
+from contour_definer import ContourDefiner
+
 
 class GUIHelpers(GUI):
     """"""
@@ -25,15 +29,8 @@ class GUIHelpers(GUI):
         self.roi, self.line, self.roi_and_line_selection, self.post_line, self.state_manager, self.status = self.setup_elements(
             window)
 
-        """
-        # TODO: check how being used actually
-        # min and max allowed centroid area to be considered a potential fish
-        self.min_area = 40
-        self.max_area = 300
+        self.contour_definer = ContourDefiner()
 
-        # min length of any contour to be considered a potential fish
-        self.length_req = 40
-        """
         self.cell_contours = []
         self.cell_centers = []
         self.shape_of_rows = []
@@ -86,11 +83,10 @@ class GUIHelpers(GUI):
         right_shift = self.frame_width+10
         std_shift = 8
 
-        #        with dpg.window(label="Video player", pos=(0,0), width = self.FRAME_WIDTH, height = self.FRAME_HEIGHT+150) as window:
         with dpg.tab_bar(label="Select", callback=self.tab_callback, parent=window):
             with dpg.tab(label='ROI Selection'):
                 state_manager = StateManager(window, self.frame_width, self.frame_height, shift=(0, 23))
-                #horizontal_button_posn = self.frame_width + 10
+
                 self.setup_keypress(state_manager)
 
                 with dpg.child_window(border=False):
