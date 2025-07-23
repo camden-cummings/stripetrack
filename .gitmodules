@@ -2,5 +2,5 @@
 	path = roi_selector_dearpygui
 	url = git@github.com:camden-cummings/roi_selector_dearpygui.git
 [submodule "strsim_for_speed"]
-	path = strsim-for-speed
+	path = strsim_for_speed
 	url = git@github.com:camden-cummings/strsim_for_speed.git
