@@ -93,3 +93,36 @@ def get_device_serial_number(nodemap_tldevice):
         print('Device serial number retrieved as %s...' % device_serial_number)
         
         return device_serial_number
+
+def get_image(cam):
+    """
+    This function continuously acquires images from a device and display them in a GUI.
+
+    :param cam: Camera to acquire images from.
+    :param nodemap: Device nodemap.
+    :param nodemap_tldevice: Transport layer device nodemap.
+    :type cam: CameraPtr
+    :type nodemap: INodeMap
+    :type nodemap_tldevice: INodeMap
+    :return: True if successful, False otherwise.
+    :rtype: bool
+    """
+    # while(continue_recording):
+    try:
+        image_result = cam.GetNextImage(300)
+        #  Ensure image completion
+        if image_result.IsIncomplete():
+            print('Image incomplete with image status %d ...' % image_result.GetImageStatus())
+
+        else:
+            # Getting the image data as a numpy array
+            image_data = image_result.GetNDArray()
+
+            # plt.pause(0.001)
+
+        image_result.Release()
+        return image_data
+
+    except Exception as ex:
+        print('Error: %s' % ex)
+        return None

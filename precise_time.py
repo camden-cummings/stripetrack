@@ -1,5 +1,6 @@
 from time import time, perf_counter, get_clock_info, ctime
 
+
 class PreciseTime:
     """Timer which tries to find most precise method of timing."""
     # being paranoid and pulling some nice time code from here: https://github.com/hardbyte/python-can/pull/936

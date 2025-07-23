@@ -4,38 +4,44 @@ Created on Tue Feb 18 11:57:57 2025
 
 @author: ThymeLab
 """
-from pathlib import Path
-from roi_selector_gui_dpg.statemanager import StateManager
-from roi_selector_gui_dpg.gui import GUI
-import dearpygui.dearpygui as dpg
-from tracker.tracker_options.real_time_tracker import RealTimeTracker
-import subprocess
-from pynput.keyboard import Key, Controller
 import os
-from contour_definer import ContourDefiner
-from tracker.roi_manip import convert_to_contours
+from pathlib import Path
+
+import dearpygui.dearpygui as dpg
 import numpy as np
+
+from roi_selector_dearpygui.roi_selector_dearpygui.statemanager import StateManager
+from roi_selector_dearpygui.roi_selector_dearpygui.gui import GUI
+
+from tracker.roi_manip import convert_to_contours #TODO reorganize tracker & this to be useful and work together well
+
+from contour_definer import ContourDefiner
 
 
 class GUIHelpers(GUI):
+    """"""
+
     def __init__(self, window, frame_width, frame_height):
-        self.contour_definer = ContourDefiner()
         self.frame_width = frame_width
         self.frame_height = frame_height
-        #        self.window, self.state_manager, self.roi, self.line, self.roi_and_line_selection, self.post_line, self.status = self.gui_init()
+
+        self.contour_definer = ContourDefiner()
+
         self.roi, self.line, self.roi_and_line_selection, self.post_line, self.state_manager, self.status = self.setup_elements(
             window)
 
-        self.min_area = 40
-        self.max_area = 300
-        self.length_req = 40
-        self.rt_tracker = RealTimeTracker([], [1], self.min_area, self.max_area, self.length_req,
-                                          np.zeros((frame_height, frame_width)))
-        self.show_only_inside_conts = False
+        self.contour_definer = ContourDefiner()
+
+        self.cell_contours = []
+        self.cell_centers = []
+        self.shape_of_rows = []
+        
+        self.show_only_inside_contours = False
         self.contour_overlay = False
         self.contours_updated = False
         self.start_recording = False
         self.mode_calculated = False
+
 
     def start_recording_callback(self, _, __):
         # TODO check here if GUI save file exists
@@ -43,12 +49,9 @@ class GUIHelpers(GUI):
             self.start_recording = True
 
     def set_cells(self, _, appdata):
-        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(appdata["filepathname"],
+        self.cell_contours, contour_mask, self.cell_centers, self.shape_of_rows = convert_to_contours(appdata["filepathname"],
                                                                                        self.frame_width,
                                                                                        self.frame_height)
-
-        self.rt_tracker = RealTimeTracker(cell_contours, shape_of_rows, self.min_area, self.max_area, self.length_req,
-                                          contour_mask)
 
         self.contours_updated = True
 
@@ -61,15 +64,12 @@ class GUIHelpers(GUI):
                 self.contours_updated = True
 
                 print("Contour Overlay")
-                cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(
-                    self.state_manager.roi_interface.convert_rois_to_lines(self.state_manager.roi_interface.rois),
+                self.cell_contours, contour_mask, self.cell_centers, self.shape_of_rows = convert_to_contours(
+                    self.state_manager.roi_interface.convert_rois_to_np_array(self.state_manager.roi_interface.rois),
                     self.frame_width, self.frame_height)
 
-                self.rt_tracker = RealTimeTracker(cell_contours, shape_of_rows, self.min_area, self.max_area,
-                                                  self.length_req, contour_mask)
-
-    def only_selected_contours(self, _, show_only_inside_conts):
-        self.show_only_inside_conts = show_only_inside_conts
+    def only_selected_contours(self, _, show_only_inside_contours):
+        self.show_only_inside_contours = show_only_inside_contours
 
     def setup_elements(self, window):
         raw_data = np.zeros((self.frame_height, self.frame_width, 3), dtype=np.float32)
@@ -84,11 +84,10 @@ class GUIHelpers(GUI):
         right_shift = self.frame_width+10
         std_shift = 8
 
-        #        with dpg.window(label="Video player", pos=(0,0), width = self.FRAME_WIDTH, height = self.FRAME_HEIGHT+150) as window:
         with dpg.tab_bar(label="Select", callback=self.tab_callback, parent=window):
             with dpg.tab(label='ROI Selection'):
                 state_manager = StateManager(window, self.frame_width, self.frame_height, shift=(0, 23))
-                #horizontal_button_posn = self.frame_width + 10
+
                 self.setup_keypress(state_manager)
 
                 with dpg.child_window(border=False):
@@ -107,7 +106,7 @@ class GUIHelpers(GUI):
 
                         dpg.hide_item(line)
 
-                    post_line = self.setup_post_line_buttons(shift, 0, state_manager, curr_dir, curr_name)
+                    post_line = self.setup_post_line_buttons(shift, 0, state_manager, curr_dir, curr_name, self.frame_width*self.frame_height)
 
                     dpg.hide_item(post_line)
 
