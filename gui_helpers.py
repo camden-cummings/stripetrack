@@ -30,8 +30,6 @@ class GUIHelpers(GUI):
         self.roi, self.line, self.roi_and_line_selection, self.post_line, self.state_manager, self.status = self.setup_elements(
             window)
 
-        self.contour_definer = ContourDefiner()
-
         self.cell_contours = []
         self.cell_centers = []
         self.shape_of_rows = []

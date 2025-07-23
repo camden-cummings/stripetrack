@@ -141,7 +141,7 @@ def correlate1d_y(input, weights, output, width, height):
                 total_neighbour += (new_arr[n + x] + new_arr[n - x]) * weights[size1 + x]
             output[ii][start] = total_neighbour
 
-#@nb.njit(parallel=True, fastmath=True)
+@nb.njit(parallel=True, fastmath=True)
 def correlate1d_x_r(rearr, weights, weight_size, output, width, height):    
     for start in nb.prange(height):
         end = start+weight_size
@@ -150,7 +150,7 @@ def correlate1d_x_r(rearr, weights, weight_size, output, width, height):
         np.dot(new_arr, weights, output[start])
 
 
-#@nb.njit(parallel=True, fastmath=True)
+@nb.njit(parallel=True, fastmath=True)
 def correlate1d_y_r(rearr, weights, weight_size, width, height, output):
     for start in nb.prange(width):
         end = start+weight_size

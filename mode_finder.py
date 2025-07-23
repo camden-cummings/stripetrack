@@ -32,7 +32,7 @@ class ModeFinder:
         
     def find_mode(self, frame_counter, image):
         global run_once
-
+        
         if len(self.movie_deq) < DESIRED_MODE_FRAMES and frame_counter % 50 == 0:
             self.movie_deq.append(image)
         elif len(self.movie_deq) >= DESIRED_MODE_FRAMES and run_once == True:
@@ -46,7 +46,7 @@ class ModeFinder:
             self.movie_deq.clear()
             self.mode_updated=True
             self.async_result=None
-
+            
             if self.prev_mode_noblur_img is None and self.mode_noblur_img is not None:
                 self.found_mode = False
             else:

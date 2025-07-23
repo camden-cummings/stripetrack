@@ -55,6 +55,9 @@ logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=loggi
 
 val = 30.0
 
+#TODO make it so can't change posn of ROIs in Contour Overlay mode
+#TODO why no dot
+
 class GUIPoolRun(PoolRun):
     def __init__(self):
         self.FRAME_HEIGHT, self.FRAME_WIDTH = 660, 992
@@ -187,7 +190,8 @@ class GUIPoolRun(PoolRun):
                     gui.contours_updated = False
                     if r.mode_updated:
                         r.mode_updated = False
-                        # dpg.configure_item(gui.status, "Ready")
+                        print(r.mode_noblur_img)
+                        dpg.configure_item(gui.status, default_value="Ready")
                 
 
                 time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
@@ -196,6 +200,11 @@ class GUIPoolRun(PoolRun):
                     image, image, mask=mask)
                 masked_curr_img = masked_curr_img.astype(np.float32, copy=False)
 
+
+                #print("op1")
+                #pr = cProfile.Profile()
+                #pr.enable()
+                
                 # TODO figure out prettier way of doing this - in fnction, time to make sure still fast as
                 rearr = np.concatenate((masked_curr_img[0:size1][::-1], masked_curr_img, masked_curr_img[-size2:][::-1]))
                 correlate1d_x_r(rearr, np_weights, weight_size, ux_tmp,self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
@@ -203,34 +212,8 @@ class GUIPoolRun(PoolRun):
                 T = ux_tmp.transpose()
                 rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
 
-                print("op1")
-                pr = cProfile.Profile()
-                pr.enable()
-                
                 correlate1d_y_r(rearr, np_weights, weight_size, self.FRAME_WIDTH, self.FRAME_HEIGHT, ux)  # , curr_scipy)
             
-                pr.disable()
-                s = io.StringIO()
-                sortby = SortKey.CUMULATIVE
-                ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-                ps.print_stats()
-                logger.info(s.getvalue())
-                
-                print("op2")
-                pr = cProfile.Profile()
-                pr.enable()
-                
-                rearr = np.ascontiguousarray(rearr)
-                correlate1d_y_r(rearr, np_weights, weight_size, self.FRAME_WIDTH, self.FRAME_HEIGHT, ux)  # , curr_scipy)
-            
-                pr.disable()
-                s = io.StringIO()
-                sortby = SortKey.CUMULATIVE
-                ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-                ps.print_stats()
-                logger.info(s.getvalue())
-                
-                
                 inp = masked_curr_img * masked_curr_img
                 rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
                 correlate1d_x_r(rearr, np_weights, weight_size, uxx_tmp,self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
@@ -247,6 +230,15 @@ class GUIPoolRun(PoolRun):
                 rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
                 correlate1d_y_r(rearr, np_weights, weight_size, self.FRAME_WIDTH, self.FRAME_HEIGHT, uxy)  # , curr_scipy)
 
+                """
+                pr.disable()
+                s = io.StringIO()
+                sortby = SortKey.CUMULATIVE
+                ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                ps.print_stats()
+                logger.info(s.getvalue())
+                """
+                
                 """
                 rearr = np.concatenate((masked_curr_img[0:size1][::-1], masked_curr_img, masked_curr_img[-size2:][::-1]))
                 cv2.imshow('r2', rearr)
