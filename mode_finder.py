@@ -4,7 +4,7 @@ from multiprocessing import Pool
 
 import PySpin
 
-from tracker.cell_finder_helpers.calc_mode import calc_mode
+from strsim_for_speed.helpers import calc_mode
 
 
 global continue_recording

@@ -15,14 +15,14 @@ import keyboard
 import numpy as np
 import pandas as pd
 import serial
-from tracker.roi_manip import convert_to_contours
 
+from roi_manip import convert_to_contours
 from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
 from command_reader import process_command_string
 from mode_finder import ModeFinder
 from precise_time import PreciseTime
 from sort_contours_by_area import sort_contours_by_area
-from structural_sim_from_scratch import correlate1d_x_r, correlate1d_y_r, run_math_, normalize_diff, setup as ssim_setup
+from strsim_for_speed.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
 
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-27-25-test\\"
 
@@ -84,13 +84,6 @@ class PoolRun:
             node_fps = PySpin.CFloatPtr(nodemap.GetNode("AcquisitionFrameRate"))
             node_fps.SetValue(val)
 
-            # width = PySpin.CIntegerPtr(nodemap.GetNode("Width"))
-            # height = PySpin.CIntegerPtr(nodemap.GetNode("Height"))
-
-            # min_width = PySpin.CIntegerPtr(nodemap.GetNode("MaxWidth"))
-            # print("width ",width.GetValue(), ", height ", height.GetValue())
-            # width.SetValue(32*5)
-            # height.SetValue(100)
             cam.BeginAcquisition()
 
             count = 1
@@ -205,19 +198,10 @@ class PoolRun:
 
         frame_counter = 0
         
-        sigma = 1.5
-        truncate = 3.5
-        radius = int(truncate * sigma + 0.5)  # radius as in ndimage
-        win_size = 2 * radius + 1
-        ndim = 2
-        NP = win_size ** ndim
-        cov_norm = NP / (NP - 1)  # sample covariance
-        
         data_range = 255
 
-        # TODO change to generate_weights
-        weights = [0.00102838, 0.00759876, 0.03600077, 0.10936069, 0.21300554, 0.26601172,
-                   0.21300554, 0.10936069, 0.03600077, 0.00759876, 0.00102838]        
+        weights, cov_norm = generate_weights(ndim=2, sigma=1.5, truncate=3.5)
+        
         weight_size = len(weights)
         size1 = math.floor(weight_size / 2)
         size2 = weight_size - size1 - 1
@@ -227,16 +211,15 @@ class PoolRun:
         ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT, order='C')
         ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_HEIGHT, self.FRAME_WIDTH, order='C') # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
 
-        run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
+        run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
         
         rearr = np.concatenate((image[0:size1][::-1], image, image[-size2:][::-1]))
         rearr = rearr.astype(dtype=np.float32)
-        correlate1d_x_r(rearr, np_weights, weight_size, uyy_tmp, self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
+        correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uyy_tmp)
 
-#        rearr = np.concatenate((uyy_tmp[:, 0:size1][:, ::-1], uyy_tmp, uyy_tmp[:, -size2:][:, ::-1]), axis=1)
         T = uyy_tmp.transpose()
         rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
-        correlate1d_y_r(rearr, np_weights, weight_size, self.FRAME_WIDTH, self.FRAME_HEIGHT, uyy)  # , curr_scipy)
+        correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uyy)
         
         detected_centroids = []
 
@@ -249,18 +232,11 @@ class PoolRun:
             try:
                 image = img_queue.get()
 
-                # TODO check that this is still working using this & then remove
-                #image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-
-                #if cv2.waitKey(1) == 1:
-                #    break
-
                 arr_time = str(timer.formatted_time(timer.now())).strip("[]").split(", ")
                 time = "_".join(arr_time)
                 logger.info(time)
                 logger.info(img_queue.qsize())
 
-                #print(time)
                 if (0 <= int(arr_time[1]) <= 10 and not r.found_mode) or (r.mode_noblur_img is None):
                     r.find_mode(frame_counter, image)
                 elif arr_time[1] == 11:
@@ -276,141 +252,69 @@ class PoolRun:
                         masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float32, copy=False)
                         r.mode_updated = False
                         
-                        """
-                        # we don't have to do this every time - will remain constant
-                        inp = masked_mode_noblur_img
-                        rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
-                        correlate1d_x(rearr, weights, uy_tmp)  # , curr_scipy)
-                        correlate1d_y(uy_tmp, weights, uy)  # , curr_scipy)
-                        
-                        inp = masked_mode_noblur_img * masked_mode_noblur_img
-                        rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
-                        correlate1d_x(masked_mode_noblur_img * masked_mode_noblur_img, weights, uyy_tmp)  # , curr_scipy)
-                        correlate1d_y(uyy_tmp, weights, uyy)  # , curr_scipy)
-                        uy_squared = uy * uy
-                        vy = cov_norm * (uyy - uy_squared)
-                        """
                         last_confident_centroid = [[cell_centers[i][j] for j in range(shape_of_rows[i])] for i in range(len(shape_of_rows))]
 
-                        #pr = cProfile.Profile()
-                        #pr.enable()
-
-                    #print(timer.now())
-                    #print('tracking')
-                    #image = image.astype(np.float64, copy=False)
                     pr = cProfile.Profile()
                     pr.enable()
                     
                     masked_curr_img = cv2.bitwise_and(image, image, mask=contour_mask)
-                    #cv2.imshow('masked', masked_curr_img)
 
                     masked_curr_img = masked_curr_img.astype(np.float32, copy=False)#, order='C')
                     
-                    """
-                    correlate1d_x(masked_curr_img, weights, ux_tmp)  # , curr_scipy)
-                    correlate1d_y(ux_tmp, weights, ux)  # , curr_scipy)
-
-                    correlate1d_x(masked_curr_img * masked_curr_img, weights, uxx_tmp)  # , curr_scipy)
-                    correlate1d_y(uxx_tmp, weights, uxx)  # , curr_scipy)
-                    
-                    correlate1d_x(masked_curr_img * masked_mode_noblur_img, weights, uxy_tmp)  # , curr_scipy)
-                    correlate1d_y(uxy_tmp, weights, uxy)  # , curr_scipy)
-                    """
-                    
+                    #TODO update
                     rearr = np.concatenate((prev_masked_img[0:size1][::-1], prev_masked_img, prev_masked_img[-size2:][::-1]))
-                    correlate1d_x_r(rearr, np_weights, weight_size, uy_tmp, self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
+                    correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uy_tmp)
                     
                     T = uy_tmp.transpose()
-                    #print(uy_tmp.flags)
                     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
-#                    rearr = np.concatenate((uy_tmp[:, 0:size1][:, ::-1], uy_tmp, uy_tmp[:, -size2:][:, ::-1]), axis=1)
-                    correlate1d_y_r(rearr, np_weights, weight_size, self.FRAME_WIDTH, self.FRAME_HEIGHT, uy)  # , curr_scipy)
+                    correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uy)
                     
                     inp = prev_masked_img * prev_masked_img
                     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
-                    correlate1d_x_r(rearr, np_weights, weight_size, uyy_tmp, self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
+                    correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uyy_tmp)
                     
                     T = uyy_tmp.transpose()
                     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
-#                    rearr = np.concatenate((uyy_tmp[:, 0:size1][:, ::-1], uyy_tmp, uyy_tmp[:, -size2:][:, ::-1]), axis=1)
-                    correlate1d_y_r(rearr, np_weights, weight_size, self.FRAME_WIDTH, self.FRAME_HEIGHT, uyy)  # , curr_scipy)
+                    correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uyy) 
                     
-                    #print(uy, uyy)
                     rearr = np.concatenate((masked_curr_img[0:size1][::-1], masked_curr_img, masked_curr_img[-size2:][::-1]))
-                    correlate1d_x_r(rearr, np_weights, weight_size, ux_tmp,self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
+                    correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, ux_tmp)
                     
                     T = ux_tmp.transpose()
                     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
-#                    rearr = np.concatenate((ux_tmp[:, 0:size1][:, ::-1], ux_tmp, ux_tmp[:, -size2:][:, ::-1]), axis=1)
-                    correlate1d_y_r(rearr, np_weights, weight_size, self.FRAME_WIDTH, self.FRAME_HEIGHT, ux)  # , curr_scipy)
+                    correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, ux) 
                 
                     inp = masked_curr_img * masked_curr_img
                     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
-                    correlate1d_x_r(rearr, np_weights, weight_size, uxx_tmp,self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
+                    correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uxx_tmp)
                     
                     T = uxx_tmp.transpose()
                     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
-#                    rearr = np.concatenate((uxx_tmp[:, 0:size1][:, ::-1], uxx_tmp, uxx_tmp[:, -size2:][:, ::-1]), axis=1)
-                    correlate1d_y_r(rearr, np_weights, weight_size, self.FRAME_WIDTH, self.FRAME_HEIGHT, uxx)  # , curr_scipy)
+                    correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uxx)
                                     
                     inp = masked_curr_img * prev_masked_img
                     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
-                    correlate1d_x_r(rearr, np_weights, weight_size, uxy_tmp, self.FRAME_WIDTH, self.FRAME_HEIGHT)  # , curr_scipy)
+                    correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uxy_tmp) 
                     
                     T = uxy_tmp.transpose()
                     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
-#                    rearr = np.concatenate((uxy_tmp[:, 0:size1][:, ::-1], uxy_tmp, uxy_tmp[:, -size2:][:, ::-1]), axis=1)
-                    correlate1d_y_r(rearr, np_weights, weight_size, self.FRAME_WIDTH, self.FRAME_HEIGHT, uxy)  # , curr_scipy)
+                    correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uxy)
                     
                     prev_masked_img = masked_curr_img
                     
-                    #print(ux, uy)
-                    
-#                    diff = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
-
-                    S = run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)    
+                    S = run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy)    
                     diff = S.transpose()
                     diff = normalize_diff(diff, self.FRAME_WIDTH, self.FRAME_HEIGHT)
                     
-                    #cv2.imshow('diff', diff)
-                    #cv2.waitKey(0)
-                    #uy = ux
-                    #uyy = uxx
-                    """
-                    diff[diff > 1] = 1
-                    diff[diff < 0] = 0
-                    
-                    diff *= 255
-                    diff = diff.astype("uint8")
-                    """
-                    """
-                    # interesting idea but not for right now
-                    if len(diff[diff<0]) > 0:
-                        diff += abs(diff.min())
-                    diff *= 255/diff.max()
-                    diff = diff.astype("uint8")"
-                    """
-
-                    #cv2.imshow('diff', diff)
                     thresh_img = cv2.threshold(diff, 155, 255, cv2.THRESH_BINARY)[1]
                     contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                     contours = contours[0] if len(contours) == 2 else contours[1]
-                    #print("len contours", len(contours))
 
                     sorted_contours = sort_contours_by_area(contours, last_confident_centroid, frame_counter, time, diff, contour_mask, shape_of_rows, cell_contours, cell_centers, 50)
                     
                     detected_centroids.extend(sorted_contours)
-                    #print(sorted_contours)
-                    #for time, frame_count, row, col, x, y in sorted_contours:
-                    #    cv2.circle(image_data, (x, y), 1, (0, 0, 255), 5, cv2.LINE_4)
-                    #cv2.drawContours(image_data, contours, -1, (0,255,0), 1)
-
-                    #cv2.imshow('data', image_data)
-
-                    #cv2.imshow('im', r.curr_img_data)
                     
                     if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(detected_centroids) > 0:
-                        #print("saving")
                         self.save_centroids_to_csv(output_filepath, detected_centroids)
                         detected_centroids.clear()
 
@@ -427,17 +331,6 @@ class PoolRun:
                 logger.error(f"tracking failed because: {e}")
                 logger.error(gc.get_stats())
             
-        """
-        print(timer.now())
-
-        pr.disable()
-        s = io.StringIO()
-        sortby = SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print(s.getvalue())
-        """
-
     @staticmethod
     def save_centroids_to_csv(output_filepath, detected_centroids):
         if not os.path.exists(output_filepath):

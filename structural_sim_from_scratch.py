@@ -3,6 +3,8 @@ import numpy as np
 import math
 import scipy.ndimage as ndi
 
+# TODO move to what is in strsim - then add numba compiled everything
+
 def generate_weights(ndim, sigma=1.5, truncate=3.5):
     radius = int(truncate * sigma + 0.5)  # radius as in ndimage
     win_size = 2 * radius + 1
