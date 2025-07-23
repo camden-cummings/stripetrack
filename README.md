@@ -10,3 +10,8 @@ git clone git@github.com:camden-cummings/zebrafish-tracker.git
 git submodule update --init
 pip install requirements.txt
 ```
+
+4. Test installation:
+```
+python gui_tracker.py
+```
