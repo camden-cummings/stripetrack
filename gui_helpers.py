@@ -13,7 +13,7 @@ import numpy as np
 from roi_selector_dearpygui.roi_selector_dearpygui.statemanager import StateManager
 from roi_selector_dearpygui.roi_selector_dearpygui.gui import GUI
 
-from tracker.roi_manip import convert_to_contours #TODO reorganize tracker & this to be useful and work together well
+from roi_manip import convert_to_contours
 
 from contour_definer import ContourDefiner
 
@@ -29,8 +29,6 @@ class GUIHelpers(GUI):
 
         self.roi, self.line, self.roi_and_line_selection, self.post_line, self.state_manager, self.status = self.setup_elements(
             window)
-
-        self.contour_definer = ContourDefiner()
 
         self.cell_contours = []
         self.cell_centers = []
@@ -59,11 +57,12 @@ class GUIHelpers(GUI):
         match dpg.get_item_configuration(tab_id)["label"]:
             case "ROI Selection":
                 self.contour_overlay = False
+                self.state_manager.disable = False
             case "Contour Overlay":
                 self.contour_overlay = True
                 self.contours_updated = True
+                self.state_manager.disable = True
 
-                print("Contour Overlay")
                 self.cell_contours, contour_mask, self.cell_centers, self.shape_of_rows = convert_to_contours(
                     self.state_manager.roi_interface.convert_rois_to_np_array(self.state_manager.roi_interface.rois),
                     self.frame_width, self.frame_height)
@@ -85,6 +84,8 @@ class GUIHelpers(GUI):
         std_shift = 8
 
         with dpg.tab_bar(label="Select", callback=self.tab_callback, parent=window):
+            down_shift = 150
+
             with dpg.tab(label='ROI Selection'):
                 state_manager = StateManager(window, self.frame_width, self.frame_height, shift=(0, 23))
 
@@ -101,16 +102,23 @@ class GUIHelpers(GUI):
 
                         shift = self.frame_width + 10
 
-                        roi = self.setup_roi_buttons(shift, 50, curr_dir, curr_name, state_manager)
-                        line = self.setup_line_buttons(shift, 50, state_manager)
+                        roi = self.setup_roi_buttons(shift, 25, curr_dir, curr_name, state_manager)
+                        line = self.setup_line_buttons(shift, 25, state_manager)
 
                         dpg.hide_item(line)
 
                     post_line = self.setup_post_line_buttons(shift, 0, state_manager, curr_dir, curr_name, self.frame_width*self.frame_height)
 
                     dpg.hide_item(post_line)
+                    
+                    dpg.add_button(label="Clear Screen and Start Over", pos=[
+                        shift, down_shift + 123], callback=self.restart)
+                    dpg.add_text(
+                        "NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete \n WASD: move all lines",
+                        pos=(shift + 5, down_shift + 140), wrap=150)
 
                 dpg.add_image("texture_tag", pos=(std_shift, std_shift + 23))
+                
             with dpg.tab(label='Contour Overlay'):
                 dpg.add_image("texture_tag")
 
@@ -120,7 +128,7 @@ class GUIHelpers(GUI):
                         dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
 
                     with dpg.tree_node(label="Computer Vision Options", default_open=True):
-                        dpg.add_combo(("No Contours", "Structural Similarity", "Real Time"),
+                        dpg.add_combo(("No Contours", "Structural Similarity Prev2Curr", "Diff Prev2Curr", "Structural Similarity Mode", "Diff Mode"),
                                       label="Contour Detecting Algorithm", callback=self.contour_definer.cv_alg_change,
                                       default_value="No Contours", width=180)
                         with dpg.group(width=300):
@@ -130,9 +138,9 @@ class GUIHelpers(GUI):
                                                  max_value=1000, default_value=self.contour_definer.centroid_size)
                         status = dpg.add_text("Status: Calculating Mode / Not Ready")
 
-                        dpg.add_checkbox(label="Only Show ROIs Inside Selected Contours",
-                                         callback=self.only_selected_contours)
+#                        dpg.add_checkbox(label="Only Show ROIs Inside Selected Contours",
+#                                         callback=self.only_selected_contours)
 
-                    dpg.add_button(label="START RECORDING", callback=self.start_recording_callback)
+#                    dpg.add_button(label="START RECORDING", callback=self.start_recording_callback)
 
         return roi, line, roi_and_line_selection, post_line, state_manager, status

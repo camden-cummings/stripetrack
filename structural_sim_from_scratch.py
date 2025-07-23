@@ -3,6 +3,8 @@ import numpy as np
 import math
 import scipy.ndimage as ndi
 
+# TODO move to what is in strsim - then add numba compiled everything
+
 def generate_weights(ndim, sigma=1.5, truncate=3.5):
     radius = int(truncate * sigma + 0.5)  # radius as in ndimage
     win_size = 2 * radius + 1
@@ -141,7 +143,7 @@ def correlate1d_y(input, weights, output, width, height):
                 total_neighbour += (new_arr[n + x] + new_arr[n - x]) * weights[size1 + x]
             output[ii][start] = total_neighbour
 
-#@nb.njit(parallel=True, fastmath=True)
+@nb.njit(parallel=True, fastmath=True)
 def correlate1d_x_r(rearr, weights, weight_size, output, width, height):    
     for start in nb.prange(height):
         end = start+weight_size
@@ -150,7 +152,7 @@ def correlate1d_x_r(rearr, weights, weight_size, output, width, height):
         np.dot(new_arr, weights, output[start])
 
 
-#@nb.njit(parallel=True, fastmath=True)
+@nb.njit(parallel=True, fastmath=True)
 def correlate1d_y_r(rearr, weights, weight_size, width, height, output):
     for start in nb.prange(width):
         end = start+weight_size
