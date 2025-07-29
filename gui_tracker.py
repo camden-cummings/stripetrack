@@ -255,7 +255,7 @@ class GUIPoolRun(PoolRun):
             
             data = np.flip(image_data, 2)
             data = data.ravel()
-            data = np.asarray(data, dtype='f') #TODO fix, add something in pipreqs to make numpy >= 2.0
+            data = np.asarray(data, dtype='f') 
             texture_data = np.true_divide(data, 255.0)
             
             frame_counter += 1
