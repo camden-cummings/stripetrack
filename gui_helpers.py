@@ -114,7 +114,7 @@ class GUIHelpers(GUI):
                     dpg.add_button(label="Clear Screen and Start Over", pos=[
                         shift, down_shift + 123], callback=self.restart)
                     dpg.add_text(
-                        "NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete \n WASD: move all lines",
+                        "NOTES \nclick and hold the edge of a ROI to rotate it \n\nSHORTCUTS \n ctrl+c: copy \n del: delete \n WASD: move all lines/ROIs\n\nHELPFUL NOTES \nto track using lines, you must click 'Generate ROIs' before your regions will be accepted \n\nsaving is only necessary to use the same ROIs over multiple sessions",
                         pos=(shift + 5, down_shift + 140), wrap=150)
 
                 dpg.add_image("texture_tag", pos=(std_shift, std_shift + 23))

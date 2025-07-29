@@ -92,8 +92,11 @@ class GUIPoolRun(PoolRun):
         ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_HEIGHT,self.FRAME_WIDTH,  order='C') # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
 
         vy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT), dtype=np.float32, order='C')
-        diff = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
-
+        
+        S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
+        diff = S.transpose()
+        diff = normalize_diff(diff, self.FRAME_WIDTH, self.FRAME_HEIGHT)
+                
         image = img_queue.get()
         rearr = np.concatenate((image[0:size1][::-1], image, image[-size2:][::-1]))
         rearr = rearr.astype(dtype=np.float32, order='C')
@@ -252,7 +255,7 @@ class GUIPoolRun(PoolRun):
             
             data = np.flip(image_data, 2)
             data = data.ravel()
-            data = np.asarray(data, dtype='f')
+            data = np.asarray(data, dtype='f') 
             texture_data = np.true_divide(data, 255.0)
             
             frame_counter += 1
@@ -263,7 +266,7 @@ class GUIPoolRun(PoolRun):
                 diff_data = cv2.cvtColor(diff, cv2.COLOR_GRAY2BGR)
                 diff_data = np.flip(diff_data, 2)
                 diff_data = diff_data.ravel()
-                diff_data = np.asfarray(diff_data, dtype='f')
+                diff_data = np.asarray(diff_data, dtype='f')
                 new = np.true_divide(diff_data, 255.0)
                 
                 dpg.set_value("texture_tag", new)
