@@ -21,8 +21,7 @@ from no_gui_tracker import PoolRun
 from precise_time import PreciseTime
 from sort_contours_by_area import sort_contours_by_area
 from strsim_for_speed.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
-# do this through GUI instead
-fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-27-25-test\\"
+from config import TEENSY_PORT, FN_START
 
 import logging
 
@@ -50,7 +49,7 @@ sys.stdout = LogFile('memory_profile_log', reportIncrementFlag=False)
 #from memory_profiler import profile
 """
 logger = logging.getLogger(__name__)
-logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
+logging.basicConfig(filename=f'{FN_START}run.log', encoding='utf-8', level=logging.DEBUG)
 
 fps = 30.0
 
@@ -74,7 +73,7 @@ class GUIPoolRun(PoolRun):
         dpg.setup_dearpygui()
         dpg.show_viewport()
 
-        r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)#, f'{fn_start}pre-processed.csv', gui)
+        r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)#, f'{FN_START}pre-processed.csv', gui)
         frame_counter = 0
             
 
@@ -106,7 +105,7 @@ class GUIPoolRun(PoolRun):
         detected_centroids = []
         
         FRAMES_TO_SAVE_AFTER = 1800
-        output_filepath =  f'{fn_start}pre-processed.csv'
+        output_filepath =  f'{FN_START}pre-processed.csv'
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32, order='C')
     
@@ -287,11 +286,11 @@ class GUIPoolRun(PoolRun):
         timer = PreciseTime()
 
         counter = 0
-        schedule_times = pd.read_csv(f"{fn_start}scheduled-events", sep="\t", header=None)
+        schedule_times = pd.read_csv(f"{FN_START}scheduled-events", sep="\t", header=None)
         num_of_instructions = schedule_times.shape[0]
         first_time = True
         end_time = np.inf
-        dev = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
+        dev = serial.Serial(port=f'COM{TEENSY_PORT}', baudrate=115200, timeout=.1)
         logger.info("start printer pool")
         while counter < num_of_instructions and not done.is_set():
             try:
