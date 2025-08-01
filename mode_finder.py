@@ -4,7 +4,7 @@ from multiprocessing import Pool
 
 import PySpin
 
-from strsim_for_speed.helpers import calc_mode
+from strsim_for_speed.computer_vision.helpers import calc_mode
 
 
 global continue_recording

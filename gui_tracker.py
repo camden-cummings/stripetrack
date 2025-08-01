@@ -20,7 +20,8 @@ from mode_finder import ModeFinder
 from no_gui_tracker import PoolRun
 from precise_time import PreciseTime
 from sort_contours_by_area import sort_contours_by_area
-from strsim_for_speed.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
+from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
+from strsim_for_speed.computer_vision.profile_wrap import start_profiler, end_profiler
 # do this through GUI instead
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-27-25-test\\"
 
@@ -114,7 +115,6 @@ class GUIPoolRun(PoolRun):
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32, order='C')
     
         while not done.is_set():    
-#            try:
             logger.info(img_queue.qsize())
             
             image = img_queue.get()
@@ -167,6 +167,8 @@ class GUIPoolRun(PoolRun):
                 
                 time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
                 
+                pr = start_profiler()
+
                 masked_curr_img = cv2.bitwise_and(
                     image, image, mask=mask)
                 masked_curr_img = masked_curr_img.astype(np.float32, copy=False)
@@ -242,6 +244,9 @@ class GUIPoolRun(PoolRun):
                 contours = contours[0] if len(contours) == 2 else contours[1]
 
                 sorted_contours = sort_contours_by_area(contours, last_confident_centroid, frame_counter, time_, diff, mask, gui.shape_of_rows, gui.cell_contours, gui.cell_centers, gui.contour_definer.centroid_size)
+
+                end_profiler(pr)
+
                 
                 detected_centroids.extend(sorted_contours)
 
