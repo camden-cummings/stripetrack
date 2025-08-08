@@ -22,7 +22,7 @@ from command_reader import process_command_string
 from mode_finder import ModeFinder
 from precise_time import PreciseTime
 from sort_contours_by_area import sort_contours_by_area
-from strsim_for_speed.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
+from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
 
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-27-25-test\\"
 
@@ -60,7 +60,7 @@ val = 30.0
 
 class PoolRun:
     def __init__(self):
-        self.FRAME_WIDTH, self.FRAME_HEIGHT = 992, 660
+        self.FRAME_WIDTH, self.FRAME_HEIGHT = 1760, 1200
 
     # @profile
     # TODO this might be able to be static
@@ -210,7 +210,8 @@ class PoolRun:
 
         ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT, order='C')
         ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_HEIGHT, self.FRAME_WIDTH, order='C') # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
-
+        vy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT), order='C')
+        
         run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
         
         rearr = np.concatenate((image[0:size1][::-1], image, image[-size2:][::-1]))
@@ -262,6 +263,7 @@ class PoolRun:
                     masked_curr_img = masked_curr_img.astype(np.float32, copy=False)#, order='C')
                     
                     #TODO update
+                    """
                     rearr = np.concatenate((prev_masked_img[0:size1][::-1], prev_masked_img, prev_masked_img[-size2:][::-1]))
                     correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uy_tmp)
                     
@@ -276,6 +278,7 @@ class PoolRun:
                     T = uyy_tmp.transpose()
                     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
                     correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uyy) 
+                    """
                     
                     rearr = np.concatenate((masked_curr_img[0:size1][::-1], masked_curr_img, masked_curr_img[-size2:][::-1]))
                     correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, ux_tmp)
@@ -300,11 +303,23 @@ class PoolRun:
                     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
                     correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uxy)
                     
-                    prev_masked_img = masked_curr_img
-                    
-                    S = run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy)    
+                    #S = run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy)    
+                    S = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
                     diff = S.transpose()
                     diff = normalize_diff(diff, self.FRAME_WIDTH, self.FRAME_HEIGHT)
+                    
+                    #cv2.imshow('frame', diff)
+                    #cv2.imshow('prev', prev_masked_img)
+                    #cv2.imshow('curr', masked_curr_img)
+    
+                    #if cv2.waitKey(1) == 1:
+                    #    break
+                        
+                    prev_masked_img = masked_curr_img
+                    
+                    uy = ux.copy()
+                    uy_squared = uy * uy
+                    vy = cov_norm * (uxx - uy_squared)
                     
                     thresh_img = cv2.threshold(diff, 155, 255, cv2.THRESH_BINARY)[1]
                     contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)

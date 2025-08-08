@@ -20,8 +20,10 @@ from mode_finder import ModeFinder
 from no_gui_tracker import PoolRun
 from precise_time import PreciseTime
 from sort_contours_by_area import sort_contours_by_area
-from strsim_for_speed.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
-from config import TEENSY_PORT, FN_START
+from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
+from strsim_for_speed.computer_vision.profile_wrap import start_profiler, end_profiler
+# do this through GUI instead
+fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-27-25-test\\"
 
 import logging
 
@@ -49,7 +51,7 @@ sys.stdout = LogFile('memory_profile_log', reportIncrementFlag=False)
 #from memory_profiler import profile
 """
 logger = logging.getLogger(__name__)
-logging.basicConfig(filename=f'{FN_START}run.log', encoding='utf-8', level=logging.DEBUG)
+logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
 
 fps = 30.0
 
@@ -73,7 +75,7 @@ class GUIPoolRun(PoolRun):
         dpg.setup_dearpygui()
         dpg.show_viewport()
 
-        r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)#, f'{FN_START}pre-processed.csv', gui)
+        r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)#, f'{fn_start}pre-processed.csv', gui)
         frame_counter = 0
             
 
@@ -91,8 +93,11 @@ class GUIPoolRun(PoolRun):
         ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_HEIGHT,self.FRAME_WIDTH,  order='C') # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
 
         vy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT), dtype=np.float32, order='C')
-        diff = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
-
+        
+        S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
+        diff = S.transpose()
+        diff = normalize_diff(diff, self.FRAME_WIDTH, self.FRAME_HEIGHT)
+                
         image = img_queue.get()
         rearr = np.concatenate((image[0:size1][::-1], image, image[-size2:][::-1]))
         rearr = rearr.astype(dtype=np.float32, order='C')
@@ -105,12 +110,11 @@ class GUIPoolRun(PoolRun):
         detected_centroids = []
         
         FRAMES_TO_SAVE_AFTER = 1800
-        output_filepath =  f'{FN_START}pre-processed.csv'
+        output_filepath =  f'{fn_start}pre-processed.csv'
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32, order='C')
     
         while not done.is_set():    
-#            try:
             logger.info(img_queue.qsize())
             
             image = img_queue.get()
@@ -163,6 +167,8 @@ class GUIPoolRun(PoolRun):
                 
                 time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
                 
+                pr = start_profiler()
+
                 masked_curr_img = cv2.bitwise_and(
                     image, image, mask=mask)
                 masked_curr_img = masked_curr_img.astype(np.float32, copy=False)
@@ -238,6 +244,9 @@ class GUIPoolRun(PoolRun):
                 contours = contours[0] if len(contours) == 2 else contours[1]
 
                 sorted_contours = sort_contours_by_area(contours, last_confident_centroid, frame_counter, time_, diff, mask, gui.shape_of_rows, gui.cell_contours, gui.cell_centers, gui.contour_definer.centroid_size)
+
+                end_profiler(pr)
+
                 
                 detected_centroids.extend(sorted_contours)
 
@@ -251,7 +260,7 @@ class GUIPoolRun(PoolRun):
             
             data = np.flip(image_data, 2)
             data = data.ravel()
-            data = np.asarray(data, dtype='f')
+            data = np.asarray(data, dtype='f') 
             texture_data = np.true_divide(data, 255.0)
             
             frame_counter += 1
@@ -262,7 +271,7 @@ class GUIPoolRun(PoolRun):
                 diff_data = cv2.cvtColor(diff, cv2.COLOR_GRAY2BGR)
                 diff_data = np.flip(diff_data, 2)
                 diff_data = diff_data.ravel()
-                diff_data = np.asfarray(diff_data, dtype='f')
+                diff_data = np.asarray(diff_data, dtype='f')
                 new = np.true_divide(diff_data, 255.0)
                 
                 dpg.set_value("texture_tag", new)
@@ -286,11 +295,11 @@ class GUIPoolRun(PoolRun):
         timer = PreciseTime()
 
         counter = 0
-        schedule_times = pd.read_csv(f"{FN_START}scheduled-events", sep="\t", header=None)
+        schedule_times = pd.read_csv(f"{fn_start}scheduled-events", sep="\t", header=None)
         num_of_instructions = schedule_times.shape[0]
         first_time = True
         end_time = np.inf
-        dev = serial.Serial(port=f'COM{TEENSY_PORT}', baudrate=115200, timeout=.1)
+        dev = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
         logger.info("start printer pool")
         while counter < num_of_instructions and not done.is_set():
             try:
