@@ -2,9 +2,7 @@ from multiprocessing import Pool
 # import cProfile, pstats, io
 # from pstats import SortKey
 
-import PySpin
-
-from strsim_for_speed.helpers import calc_mode
+from strsim_for_speed.computer_vision.helpers import calc_mode
 
 
 global continue_recording
@@ -36,6 +34,7 @@ class ModeFinder:
         if len(self.movie_deq) < DESIRED_MODE_FRAMES and frame_counter % 50 == 0:
             self.movie_deq.append(image)
         elif len(self.movie_deq) >= DESIRED_MODE_FRAMES and run_once == True:
+            print("start")
             pool = Pool(processes=1)
             self.async_result = pool.apply_async(calc_mode, (self.movie_deq, self.FRAME_HEIGHT, self.FRAME_WIDTH))
             run_once = False

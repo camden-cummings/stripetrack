@@ -13,6 +13,7 @@ import dearpygui.dearpygui as dpg
 import numpy as np
 import pandas as pd
 import serial
+import sys
 
 from command_reader import process_command_string
 from gui_helpers import GUIHelpers
@@ -20,13 +21,15 @@ from mode_finder import ModeFinder
 from no_gui_tracker import PoolRun
 from precise_time import PreciseTime
 from sort_contours_by_area import sort_contours_by_area
-from strsim_for_speed.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
+from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x__ as correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
+
 # do this through GUI instead
-fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-27-25-test\\"
+fn_start = "C:\\Users\\ThymeLab\\Desktop\\9-30-25\\"
 
 import logging
 
 # TODO try memlog to double check
+
 """
 # create logger
 mem_logger = logging.getLogger('memory_profile_log')
@@ -43,11 +46,11 @@ fh.setFormatter(formatter)
 # add the handlers to the logger
 mem_logger.addHandler(fh)
 
-from memory_profiler import LogFile
-import sys
-sys.stdout = LogFile('memory_profile_log', reportIncrementFlag=False)
+#from memory_profiler import LogFile
+#import sys
+#sys.stdout = LogFile('memory_profile_log', reportIncrementFlag=False)
 
-#from memory_profiler import profile
+from memory_profiler import profile
 """
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
@@ -57,9 +60,11 @@ fps = 30.0
 class GUIPoolRun(PoolRun):
     def __init__(self):
         self.FRAME_HEIGHT, self.FRAME_WIDTH = 660, 992
+        #self.FRAME_HEIGHT, self.FRAME_WIDTH = 1200, 1760
+        
         self.image_data = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT, 3))
 
-  #  @profile
+    #@profile
     def tracking_pool(self, img_queue, done, start_recording):
         logger.info("start gui pool")
 
@@ -88,22 +93,25 @@ class GUIPoolRun(PoolRun):
 
         np_weights = np.asarray(weights, dtype=np.float32)
 
-        ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_WIDTH, self.FRAME_HEIGHT, order='C')
-        ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_HEIGHT,self.FRAME_WIDTH,  order='C') # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
+        ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_HEIGHT, self.FRAME_WIDTH, order='C', data_type=np.float32)
+        ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_HEIGHT, self.FRAME_WIDTH, order='C', data_type=np.float32) # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
+        vy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT), order='C')
+        uy_squared = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT), order='C')
 
-        vy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT), dtype=np.float32, order='C')
+        diff = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), order='C', dtype=np.uint8)
+        S = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT), order='C', dtype=np.float64)
         
-        S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
-        diff = S.transpose()
-        diff = normalize_diff(diff, self.FRAME_WIDTH, self.FRAME_HEIGHT)
+        S = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
+        S_t = S.T
                 
+        normalize_diff(S_t, self.FRAME_WIDTH, self.FRAME_HEIGHT, diff)
+
         image = img_queue.get()
         rearr = np.concatenate((image[0:size1][::-1], image, image[-size2:][::-1]))
-        rearr = rearr.astype(dtype=np.float32, order='C')
-        correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uyy_tmp)  # , curr_scipy)
-        T = uyy_tmp.transpose()
-        rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)   
-        rearr = np.ascontiguousarray(rearr)
+        rearr = rearr.astype(dtype=np.float32)
+
+        correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uyy_tmp)
+        rearr = np.concatenate((uyy_tmp[0:size1][::-1], uyy_tmp, uyy_tmp[-size2:][::-1]), axis=0)   
         correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uyy)  # , curr_scipy)
         
         detected_centroids = []
@@ -114,9 +122,6 @@ class GUIPoolRun(PoolRun):
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32, order='C')
     
         while not done.is_set():    
-#            try:
-            logger.info(img_queue.qsize())
-            
             image = img_queue.get()
             image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
@@ -141,16 +146,14 @@ class GUIPoolRun(PoolRun):
                     rearr = np.concatenate((masked_mode_noblur_img[0:size1][::-1], masked_mode_noblur_img, masked_mode_noblur_img[-size2:][::-1]))
                     correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uy_tmp)  # , curr_scipy)
                     
-                    T = uy_tmp.transpose()
-                    rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+                    rearr = np.concatenate((uy_tmp[0:size1][::-1], uy_tmp, uy_tmp[-size2:][::-1]), axis=0)
                     correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uy)  # , curr_scipy)
                                     
                     inp = masked_mode_noblur_img * masked_mode_noblur_img
                     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
                     correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uyy_tmp)  # , curr_scipy)
                     
-                    T = uyy_tmp.transpose()
-                    rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+                    rearr = np.concatenate((uyy_tmp[0:size1][::-1], uyy_tmp, uyy_tmp[-size2:][::-1]), axis=0)
                     correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uyy)  # , curr_scipy)
                     
                     uy_squared = uy * uy
@@ -161,7 +164,6 @@ class GUIPoolRun(PoolRun):
                     gui.contours_updated = False
                     if r.mode_updated:
                         r.mode_updated = False
-                        print(r.mode_noblur_img)
                         dpg.configure_item(gui.status, default_value="Status: Mode Ready")
                 
                 
@@ -176,33 +178,28 @@ class GUIPoolRun(PoolRun):
                 rearr = np.concatenate((masked_curr_img[0:size1][::-1], masked_curr_img, masked_curr_img[-size2:][::-1]))
                 correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, ux_tmp)
                 
-                T = ux_tmp.transpose()
-                rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
-
+                rearr = np.concatenate((ux_tmp[0:size1][::-1], ux_tmp, ux_tmp[-size2:][::-1]), axis=0)
                 correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, ux) 
             
                 inp = masked_curr_img * masked_curr_img
                 rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
                 correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uxx_tmp) 
                 
-                T = uxx_tmp.transpose()
-                rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+                rearr = np.concatenate((uxx_tmp[0:size1][::-1], uxx_tmp, uxx_tmp[-size2:][::-1]), axis=0)
                 correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uxx)
-                            
+                
                 if gui.contour_definer.going_to_mode_method:
                     rearr = np.concatenate((masked_mode_noblur_img[0:size1][::-1], masked_mode_noblur_img, masked_mode_noblur_img[-size2:][::-1]))
                     correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uy_tmp)  # , curr_scipy)
                     
-                    T = uy_tmp.transpose()
-                    rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+                    rearr = np.concatenate((uy_tmp[0:size1][::-1], uy_tmp, uy_tmp[-size2:][::-1]), axis=0)
                     correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uy)  # , curr_scipy)
                                     
                     inp = masked_mode_noblur_img * masked_mode_noblur_img
                     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
                     correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uyy_tmp)  # , curr_scipy)
                     
-                    T = uyy_tmp.transpose()
-                    rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+                    rearr = np.concatenate((uyy_tmp[0:size1][::-1], uyy_tmp, uyy_tmp[-size2:][::-1]), axis=0)
                     correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uyy)  # , curr_scipy)
                     
                     gui.contour_definer.going_to_mode_method = False
@@ -212,8 +209,7 @@ class GUIPoolRun(PoolRun):
                     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
                     correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uxy_tmp)
                     
-                    T = uxy_tmp.transpose()
-                    rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+                    rearr = np.concatenate((uxy_tmp[0:size1][::-1], uxy_tmp, uxy_tmp[-size2:][::-1]), axis=0)
                     correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uxy)
     
                     prev_masked_img = masked_curr_img
@@ -223,14 +219,19 @@ class GUIPoolRun(PoolRun):
                     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
                     correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uxy_tmp)
                     
-                    T = uxy_tmp.transpose()
-                    rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+                    rearr = np.concatenate((uxy_tmp[0:size1][::-1], uxy_tmp, uxy_tmp[-size2:][::-1]), axis=0)
                     correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uxy)                    
                 
+                    #arr_time = str(timer.formatted_time(timer.now())).strip("[]").split(", ")
+    
+                    #if (0 <= int(arr_time[1]) <= 10 and not r.found_mode) or (r.mode_noblur_img is None):
+                    #    r.find_mode(frame_counter, image)
+                    #elif arr_time[1] == 11:
+                    #    r.found_mode = False
+                    
                 S = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
-
-                diff = S.transpose()
-                diff = normalize_diff(diff, self.FRAME_WIDTH, self.FRAME_HEIGHT)
+                S_t = S.T
+                normalize_diff(S_t, self.FRAME_WIDTH, self.FRAME_HEIGHT, diff)
                 
                 if "Prev2Curr" in gui.contour_definer.cv_method:
                     uy = ux.copy()
@@ -242,7 +243,7 @@ class GUIPoolRun(PoolRun):
                 contours = contours[0] if len(contours) == 2 else contours[1]
 
                 sorted_contours = sort_contours_by_area(contours, last_confident_centroid, frame_counter, time_, diff, mask, gui.shape_of_rows, gui.cell_contours, gui.cell_centers, gui.contour_definer.centroid_size)
-                
+
                 detected_centroids.extend(sorted_contours)
 
                 if "Structural Similarity" in gui.contour_definer.cv_method:
@@ -273,6 +274,7 @@ class GUIPoolRun(PoolRun):
 
             dpg.render_dearpygui_frame()
             
+                
             if gui.start_recording:
                 start_recording.set()
             
@@ -286,6 +288,7 @@ class GUIPoolRun(PoolRun):
         dpg.destroy_context()
 
 #    @profile
+"""
     def printer_pool(self, done, start_recording, fps_commands, recording_commands):
         timer = PreciseTime()
 
@@ -318,17 +321,19 @@ class GUIPoolRun(PoolRun):
                         [curr_time[i] * j[i] for i in range(len(at_time))])
 
                     if abs(diff) > 120:
-                        logger.info("sending val to fps")
+                        logger.info(f"sending {fps} to fps")
                         # print("sending val to fps")
                         fps_commands.send(fps)
 
                     recording_commands.send([duration, at_time, type_of_video, counter])
 
                     first_time = False
-
-                if (timer.formatted_time(timer.now()) == at_time and (
+                    sent = False
+                
+                formatted_time = timer.formatted_time(timer.now())
+                if (formatted_time == at_time and (
                         type_of_video == 1 or type_of_video == 0)) or (
-                        timer.formatted_time(timer.now()) >= at_time and type_of_video == 2):
+                        formatted_time >= at_time and type_of_video == 2):
                     if end_time == np.inf:
                         if duration != 0:
                             if type_of_video == 1:
@@ -344,6 +349,14 @@ class GUIPoolRun(PoolRun):
                         end_time = start_time + duration
                         recording_commands.send(["start_now", start_time, "end_now", end_time])
                         dev.write(bytes(command_string, 'utf-8'))
+                        
+                if type_of_video == 1 and not sent: #285 fps vids need to be at 285 fps when command to record starts
+                    diff = sum([at_time[i] * j[i] for i in range(len(at_time))]) - sum([formatted_time[i] * j[i] for i in range(len(at_time))])
+
+                    if diff == 5:
+                        print("SENDING")
+                        fps_commands.send(285.0)
+                        sent = True
 
                 if timer.now() >= end_time:
                     # recording_commands.send(["stop"])
@@ -352,12 +365,13 @@ class GUIPoolRun(PoolRun):
                     end_time = np.inf
                     
             except Exception as e:
-                #print(e)
-                logger.error(f"timer failed because: {e}")
-                logger.error(gc.get_stats())
+                print("printer pool error:", e)
+                #logger.error(f"timer failed because: {e}")
+                #logger.error(gc.get_stats())
 
         done.set()
-            
+"""
+
 if __name__ == '__main__':   
     poolrun = GUIPoolRun()
 
@@ -391,4 +405,4 @@ if __name__ == '__main__':
     sortby = SortKey.CUMULATIVE
     ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
     ps.print_stats()
-    logger.info(s.getvalue())
+    #logger.info(s.getvalue())

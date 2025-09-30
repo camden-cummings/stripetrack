@@ -1,4 +1,4 @@
-from time import time, perf_counter, get_clock_info, ctime
+from time import time, perf_counter, get_clock_info, localtime
 
 
 class PreciseTime:
@@ -21,10 +21,10 @@ class PreciseTime:
             self.perfcounter = None  # not needed
 
     @staticmethod
-    def formatted_time(input_time) -> list[int, int, int]:
-        """Returns time in [H, M, S] format."""
-        return [int(c) for c in ctime(input_time).split()[3].split(":")]
-
+    def formatted_time(input_time):
+        l = localtime(input_time)
+        return[l.tm_hour, l.tm_min, l.tm_sec]
+    
     def now(self) -> float:
         """Finds current time according to best timer."""
         if self.perfcounter is None:

@@ -14,12 +14,13 @@ import numpy as np
 import cv2
 
 from roi_selector_dearpygui.roi_selector_dearpygui.interfaces.roipoly import RoiPoly
-from strsim_for_speed.helpers import calc_mode_img
+from strsim_for_speed.computer_vision.helpers import calc_mode_img
 
 #TODO add auto trimmer that finds dimensions that can trim the image to to still include all of every contour
 #TODO dump all of this nonsense into roiinterface
 
 def convert_to_contours(cell_filename, frame_width, frame_height): 
+    print(cell_filename)
     if isinstance(cell_filename, str):
         with open(cell_filename, 'rb') as f:
             rois = pickle.load(f)
