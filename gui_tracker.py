@@ -21,6 +21,7 @@ from strsim_for_speed.computer_vision.structural_sim_from_scratch import correla
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\9-30-25\\"
 
 import logging
+import argparse
 
 # TODO try memlog to double check
 
@@ -28,6 +29,34 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
 
 fps = 30.0
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument(
+   "-exp_folder",
+   "--exp_folder",
+   required=True
+)
+
+parser.add_argument(
+   "-rois_fname",
+   "--rois_fname",
+   required=True
+)
+
+parser.add_argument(
+   "-event_schedule",
+   "--event_schedule",
+   required=True
+)
+
+parser.add_argument(
+   "-d",
+   "--debug",
+   action='store_true'
+)
+
+
 
 class GUIPoolRun(PoolRun):
     def __init__(self):

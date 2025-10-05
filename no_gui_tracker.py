@@ -27,11 +27,46 @@ from strsim_for_speed.computer_vision.structural_sim_from_scratch import correla
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\9-30-25\\"
 
 import logging
+import argparse
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
 
 val = 30.0
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument(
+   "-exp_folder",
+   "--exp_folder",
+   required=True
+)
+
+parser.add_argument(
+   "-rois_fname",
+   "--rois_fname",
+   required=True
+)
+
+parser.add_argument(
+   "-event_schedule",
+   "--event_schedule",
+   required=True
+)
+
+parser.add_argument(
+   "-d",
+   "--debug",
+   action='store_true'
+)
+
+parser.add_argument(
+   "-v",
+   "--view",
+   action='store_true'
+)
+
+args = parser.parse_args()
 
 class PoolRun:
     def __init__(self):
@@ -321,12 +356,12 @@ class PoolRun:
 
                     normalize_diff(S_t, self.FRAME_WIDTH, self.FRAME_HEIGHT, diff)
                     
-                    #cv2.imshow('frame', diff)
-                    #cv2.imshow('prev', prev_masked_img)
-                    #cv2.imshow('curr', masked_curr_img)
-    
-                    #if cv2.waitKey(1) == 1:
-                    #    break
+                    if args.view:
+                        cv2.imshow('frame', image)
+                        cv2.imshow('diff', diff)
+
+                        if cv2.waitKey(1) == 1:
+                            break
                         
                     prev_masked_img = masked_curr_img
                     
