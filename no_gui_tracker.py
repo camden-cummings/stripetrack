@@ -15,7 +15,6 @@ import keyboard
 import numpy as np
 import pandas as pd
 import serial
-import time
 
 from roi_manip import convert_to_contours
 from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
@@ -23,42 +22,16 @@ from command_reader import process_command_string
 from mode_finder import ModeFinder
 from precise_time import PreciseTime
 from sort_contours_by_area import sort_contours_by_area
-from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x__ as correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
-
-#import llvmlite.binding as llvm
-#llvm.set_option('', '--debug-only=loop-vectorize')
+from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x__ as correlate1d_x, correlate1d_y, run_math, normalize_diff, setup as ssim_setup, generate_weights
 
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\9-30-25\\"
 
 import logging
 
-# create logger
-#mem_logger = logging.getLogger('memory_profile_log')
-#mem_logger.setLevel(logging.DEBUG)
-
-# create file handler which logs even debug messages
-#fh = logging.FileHandler("memory_profile.log")
-#fh.setLevel(logging.DEBUG)
-
-# create formatter
-#formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-#fh.setFormatter(formatter)
-
-# add the handlers to the logger
-#mem_logger.addHandler(fh)
-
-#from memory_profiler import LogFile
-#import sys
-
-#sys.stdout = LogFile('memory_profile_log', reportIncrementFlag=False)
-
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
 
 val = 30.0
-#def f8_alt(x):
-#    return "%14.9f" % x
-#pstats.f8 = f8_alt   
 
 class PoolRun:
     def __init__(self):
@@ -69,8 +42,8 @@ class PoolRun:
     # TODO this might be able to be static
     def video_pool(self, img_queue, done, fps_commands, recording_queue):
         logger.info("start video pool")
-        pr = cProfile.Profile()
-        pr.enable()
+        #pr = cProfile.Profile()
+        #pr.enable()
         try:
             timer = PreciseTime()
 
@@ -108,8 +81,8 @@ class PoolRun:
                     vidcount += 1
 
                 # TODO is this necessary anymore (?)
-                if img_queue.qsize() > 20:
-                    print("qsize", img_queue.qsize())
+                if img_queue.qsize() > 11:
+                    print("qsize", img_queue.qsize(), fps)
                     while img_queue.qsize() > 2:
                         try:
                             img_queue.get()
@@ -157,12 +130,12 @@ class PoolRun:
         # Release system instance
         system.ReleaseInstance()
 
-        pr.disable()
-        s = io.StringIO()
-        sortby = SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print("video pool", s.getvalue())
+        #pr.disable()
+        #s = io.StringIO()
+        #sortby = SortKey.CUMULATIVE
+        #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        #ps.print_stats()
+        #print("video pool", s.getvalue())
             
     #    @profile
     def video_recorder_pool(self, recording_queue, recording_commands, done):
@@ -208,7 +181,7 @@ class PoolRun:
                 logger.error(gc.get_stats())
 
 
-    def tracking_pool(self, img_queue, done, start_recording):
+    def tracking_pool(self, img_queue, done):
         logger.info("start tracking pool")
 
         timer = PreciseTime()
@@ -259,8 +232,8 @@ class PoolRun:
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32)
 
-        pr = cProfile.Profile()
-        pr.enable()
+        #pr = cProfile.Profile()
+        #pr.enable()
         
         while not done.is_set():
             try:
@@ -268,9 +241,9 @@ class PoolRun:
 
                 arr_time = str(timer.formatted_time(timer.now())).strip("[]").split(", ")
                 time = "_".join(arr_time)
-                logger.info(time)
-                logger.info(img_queue.qsize())
-
+#                logger.info(time)
+#                logger.info(img_queue.qsize())
+                print(time, img_queue.qsize())
                 #if (0 <= int(arr_time[1]) <= 10 and not r.found_mode) or (r.mode_noblur_img is None):
                 #    r.find_mode(frame_counter, image)
                 #elif arr_time[1] == 11:
@@ -379,12 +352,12 @@ class PoolRun:
                 logger.error(f"tracking failed because: {e}")
                 logger.error(gc.get_stats())
 
-        pr.disable()
-        s = io.StringIO()
-        sortby = SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print("tracker pool", s.getvalue())
+        #pr.disable()
+        #s = io.StringIO()
+        #sortby = SortKey.CUMULATIVE
+        #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        #ps.print_stats()
+        #print("tracker pool", s.getvalue())
             
     @staticmethod
     def save_centroids_to_csv(output_filepath, detected_centroids):
@@ -398,7 +371,7 @@ class PoolRun:
             new.to_csv(output_filepath, sep=',', mode='a', index=False, header=False)
 
     #    @profile
-    def printer_pool(self, done, start_recording, fps_commands, recording_commands):
+    def printer_pool(self, done, fps_commands, recording_commands):
         timer = PreciseTime()
 
         counter = 0
@@ -408,15 +381,15 @@ class PoolRun:
         end_time = np.inf
         dev = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
 
-        pr = cProfile.Profile()
-        pr.enable()
+        #pr = cProfile.Profile()
+        #pr.enable()
         while counter < num_of_instructions and not done.is_set():
             try:
                 if first_time:  # setup all necessary pieces
                     at_time, command_string, type_of_video = process_command_string(
                         schedule_times.iloc[counter])
-                    logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
-                    #print(f"COMMANDS: {at_time} {command_string} {type_of_video}")
+                    #logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
+                    print(f"COMMANDS: {at_time} {command_string} {type_of_video}")
                     if type_of_video == 0:
                         duration = 0
                     elif type_of_video == 1:
@@ -424,12 +397,12 @@ class PoolRun:
                     else: # long video
                         duration = 1800
 
-                    j = [3600, 60, 1]
-                    diff = at_time - timer.now() % 86400 - 3600*4
-
+                    diff = at_time - int(timer.now() % 86400 - 3600*4)
+                    print(diff)
+                    
                     if abs(diff) > 120:
-                        logger.info("sending val to fps")
-                        #print("sending val to fps")
+                        #logger.info("sending val to fps")
+                        print(f"sending {val} to fps")
                         fps_commands.send(val)
                         
                     recording_commands.send([duration, at_time, type_of_video, counter])
@@ -451,11 +424,11 @@ class PoolRun:
                         #print(start_time, end_time)
                         if duration != 0:
                             if type_of_video == 1:
-                                logger.info("sending 285.0")
+                                #logger.info("sending 285.0")
                                 print("sending 285.0")
                                 fps_commands.send(285.0)
                             else:
-                                logger.info(f"sending {val}")
+                                #logger.info(f"sending {val}")
                                 print(f"sending {val}")
                                 fps_commands.send(val)
                                 
@@ -483,12 +456,12 @@ class PoolRun:
         done.set()
     
     
-        pr.disable()
-        s = io.StringIO()
-        sortby = SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print("printer pool", s.getvalue())
+        #pr.disable()
+        #s = io.StringIO()
+        #sortby = SortKey.CUMULATIVE
+        #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        #ps.print_stats()
+        #print("printer pool", s.getvalue())
 
 
 if __name__ == '__main__':
@@ -504,13 +477,12 @@ if __name__ == '__main__':
     queue = multiprocessing.Queue()
     recording_queue = multiprocessing.Queue()
     done = multiprocessing.Event()
-    start_recording = multiprocessing.Event()
     fps_commands_vid, fps_commands_p = multiprocessing.Pipe()
     recording_commands, recording_commands_p = multiprocessing.Pipe()
 
     vid_p = Process(target=poolrun.video_pool, args=(queue, done, fps_commands_vid, recording_queue,))
-    tracking_p = Process(target=poolrun.tracking_pool, args=(queue, done, start_recording,))
-    p = Process(target=poolrun.printer_pool, args=(done, start_recording, fps_commands_p, recording_commands_p,))
+    tracking_p = Process(target=poolrun.tracking_pool, args=(queue, done,))
+    p = Process(target=poolrun.printer_pool, args=(done, fps_commands_p, recording_commands_p,))
     vid_rec_p = Process(target=poolrun.video_recorder_pool, args=(recording_queue, recording_commands, done,))
     vid_p.start()
     tracking_p.start()

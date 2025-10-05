@@ -1,5 +1,4 @@
 import cProfile
-import gc
 import io
 import math
 import multiprocessing
@@ -7,21 +6,16 @@ import pstats
 from multiprocessing import Process
 from pstats import SortKey
 
-import PySpin
 import cv2
 import dearpygui.dearpygui as dpg
 import numpy as np
-import pandas as pd
-import serial
-import sys
 
-from command_reader import process_command_string
 from gui_helpers import GUIHelpers
 from mode_finder import ModeFinder
 from no_gui_tracker import PoolRun
 from precise_time import PreciseTime
 from sort_contours_by_area import sort_contours_by_area
-from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x__ as correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
+from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x__ as correlate1d_x, correlate1d_y, run_math, normalize_diff, setup as ssim_setup, generate_weights
 
 # do this through GUI instead
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\9-30-25\\"
@@ -30,28 +24,6 @@ import logging
 
 # TODO try memlog to double check
 
-"""
-# create logger
-mem_logger = logging.getLogger('memory_profile_log')
-mem_logger.setLevel(logging.DEBUG)
-
-# create file handler which logs even debug messages
-fh = logging.FileHandler("memory_profile.log")
-fh.setLevel(logging.DEBUG)
-
-# create formatter
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-fh.setFormatter(formatter)
-
-# add the handlers to the logger
-mem_logger.addHandler(fh)
-
-#from memory_profiler import LogFile
-#import sys
-#sys.stdout = LogFile('memory_profile_log', reportIncrementFlag=False)
-
-from memory_profiler import profile
-"""
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
 
@@ -64,8 +36,7 @@ class GUIPoolRun(PoolRun):
         
         self.image_data = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT, 3))
 
-    #@profile
-    def tracking_pool(self, img_queue, done, start_recording):
+    def tracking_pool(self, img_queue, done):
         logger.info("start gui pool")
 
         dpg.create_context()
@@ -121,6 +92,7 @@ class GUIPoolRun(PoolRun):
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32, order='C')
     
+            
         while not done.is_set():    
             image = img_queue.get()
             image_data = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
@@ -168,7 +140,7 @@ class GUIPoolRun(PoolRun):
                 
                 
                 time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
-                
+
                 masked_curr_img = cv2.bitwise_and(
                     image, image, mask=mask)
                 masked_curr_img = masked_curr_img.astype(np.float32, copy=False)
@@ -274,122 +246,24 @@ class GUIPoolRun(PoolRun):
 
             dpg.render_dearpygui_frame()
             
-                
-            if gui.start_recording:
-                start_recording.set()
-            
-
-            #except Exception as e:
-                #print(e)
-            #    logger.error(f"gui failed because: {e}")
-            #    logger.error(img_queue.qsize())
-            #    logger.error(gc.get_stats())
-
         dpg.destroy_context()
-
-#    @profile
-"""
-    def printer_pool(self, done, start_recording, fps_commands, recording_commands):
-        timer = PreciseTime()
-
-        counter = 0
-        schedule_times = pd.read_csv(f"{fn_start}scheduled-events", sep="\t", header=None)
-        num_of_instructions = schedule_times.shape[0]
-        first_time = True
-        end_time = np.inf
-        dev = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
-        logger.info("start printer pool")
-        while counter < num_of_instructions and not done.is_set():
-            try:
-                #TODO decide about start_recording
-                #if start_recording.is_set():
-                if first_time:  # setup all necessary pieces
-                    at_time, command_string, type_of_video = process_command_string(
-                        schedule_times.iloc[counter])
-                    logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
-                    # print(f"COMMANDS: {at_time} {command_string} {type_of_video}")
-                    if type_of_video == 0:
-                        duration = 0
-                    elif type_of_video == 1:
-                        duration = 1
-                    else:  # long video
-                        duration = 1800
-
-                    j = [3600, 60, 1]
-                    curr_time = timer.formatted_time(timer.now())
-                    diff = sum([at_time[i] * j[i] for i in range(len(at_time))]) - sum(
-                        [curr_time[i] * j[i] for i in range(len(at_time))])
-
-                    if abs(diff) > 120:
-                        logger.info(f"sending {fps} to fps")
-                        # print("sending val to fps")
-                        fps_commands.send(fps)
-
-                    recording_commands.send([duration, at_time, type_of_video, counter])
-
-                    first_time = False
-                    sent = False
-                
-                formatted_time = timer.formatted_time(timer.now())
-                if (formatted_time == at_time and (
-                        type_of_video == 1 or type_of_video == 0)) or (
-                        formatted_time >= at_time and type_of_video == 2):
-                    if end_time == np.inf:
-                        if duration != 0:
-                            if type_of_video == 1:
-                                logger.info("sending 285.0")
-                                # print("sending 285.0")
-                                fps_commands.send(285.0)
-                            else:
-                                logger.info(f"sending {fps}")
-                                # print(f"sending {val}")
-                                fps_commands.send(fps)
-
-                        start_time = int(timer.now())
-                        end_time = start_time + duration
-                        recording_commands.send(["start_now", start_time, "end_now", end_time])
-                        dev.write(bytes(command_string, 'utf-8'))
-                        
-                if type_of_video == 1 and not sent: #285 fps vids need to be at 285 fps when command to record starts
-                    diff = sum([at_time[i] * j[i] for i in range(len(at_time))]) - sum([formatted_time[i] * j[i] for i in range(len(at_time))])
-
-                    if diff == 5:
-                        print("SENDING")
-                        fps_commands.send(285.0)
-                        sent = True
-
-                if timer.now() >= end_time:
-                    # recording_commands.send(["stop"])
-                    counter += 1
-                    first_time = True
-                    end_time = np.inf
-                    
-            except Exception as e:
-                print("printer pool error:", e)
-                #logger.error(f"timer failed because: {e}")
-                #logger.error(gc.get_stats())
-
-        done.set()
-"""
-
+        
+        
 if __name__ == '__main__':   
     poolrun = GUIPoolRun()
 
     print('Acquiring images...')
-    
-    pr = cProfile.Profile()
-    pr.enable()
+
     
     queue = multiprocessing.Queue()
     recording_queue = multiprocessing.Queue()
     done = multiprocessing.Event()
-    start_recording = multiprocessing.Event()
     fps_commands_vid, fps_commands_p = multiprocessing.Pipe()
     recording_commands_gui, recording_commands_p = multiprocessing.Pipe()
 
     vid_p = Process(target=poolrun.video_pool, args=(queue, done, fps_commands_vid, recording_queue,))
-    tracking_p = Process(target=poolrun.tracking_pool, args=(queue, done, start_recording, ))
-    p = Process(target=poolrun.printer_pool, args=(done, start_recording, fps_commands_p, recording_commands_p, ))
+    tracking_p = Process(target=poolrun.tracking_pool, args=(queue, done, ))
+    p = Process(target=poolrun.printer_pool, args=(done, fps_commands_p, recording_commands_p, ))
     vid_rec_p = Process(target=poolrun.video_recorder_pool, args=(recording_queue, recording_commands_gui, done, ))
     vid_p.start()    
     tracking_p.start()
@@ -400,9 +274,4 @@ if __name__ == '__main__':
     p.join()
     vid_rec_p.join()
     
-    pr.disable()
-    s = io.StringIO()
-    sortby = SortKey.CUMULATIVE
-    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-    ps.print_stats()
-    #logger.info(s.getvalue())
+
