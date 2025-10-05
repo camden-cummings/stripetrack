@@ -17,16 +17,10 @@ from precise_time import PreciseTime
 from sort_contours_by_area import sort_contours_by_area
 from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x__ as correlate1d_x, correlate1d_y, run_math, normalize_diff, setup as ssim_setup, generate_weights
 
-# do this through GUI instead
-fn_start = "C:\\Users\\ThymeLab\\Desktop\\9-30-25\\"
-
 import logging
 import argparse
 
 # TODO try memlog to double check
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
 
 fps = 30.0
 
@@ -56,7 +50,12 @@ parser.add_argument(
    action='store_true'
 )
 
+args = parser.parse_args()
 
+exp_folder = args.exp_folder
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename=f'{exp_folder}\\run.log', encoding='utf-8', level=logging.DEBUG)
 
 class GUIPoolRun(PoolRun):
     def __init__(self):
@@ -79,7 +78,7 @@ class GUIPoolRun(PoolRun):
         dpg.setup_dearpygui()
         dpg.show_viewport()
 
-        r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)#, f'{fn_start}pre-processed.csv', gui)
+        r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)
         frame_counter = 0
             
 
@@ -117,7 +116,7 @@ class GUIPoolRun(PoolRun):
         detected_centroids = []
         
         FRAMES_TO_SAVE_AFTER = 1800
-        output_filepath =  f'{fn_start}pre-processed.csv'
+        output_filepath =  f'{exp_folder}\pre-processed.csv'
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32, order='C')
     

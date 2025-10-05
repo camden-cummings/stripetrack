@@ -24,13 +24,8 @@ from precise_time import PreciseTime
 from sort_contours_by_area import sort_contours_by_area
 from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x__ as correlate1d_x, correlate1d_y, run_math, normalize_diff, setup as ssim_setup, generate_weights
 
-fn_start = "C:\\Users\\ThymeLab\\Desktop\\9-30-25\\"
-
 import logging
 import argparse
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(filename=f'{fn_start}run.log', encoding='utf-8', level=logging.DEBUG)
 
 val = 30.0
 
@@ -67,6 +62,10 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+exp_folder = args.exp_folder
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename=f'{exp_folder}\\run.log', encoding='utf-8', level=logging.DEBUG)
 
 class PoolRun:
     def __init__(self):
@@ -197,11 +196,11 @@ class PoolRun:
 
                             vid_name = f"{int(at_time / 3600)}_{int((at_time % 3600)/60)}_{int(at_time % 60)}-{str(counter)}"
                             if type_of_video == 1:
-                                result = cv2.VideoWriter(f'{fn_start}{vid_name}.avi',
+                                result = cv2.VideoWriter(f'{exp_folder}{vid_name}.avi',
                                                          cv2.VideoWriter_fourcc(*'MJPG'),
                                                          285, (self.FRAME_WIDTH, self.FRAME_HEIGHT), False)
                             else:
-                                result = cv2.VideoWriter(f'{fn_start}{vid_name}-long.avi',
+                                result = cv2.VideoWriter(f'{exp_folder}{vid_name}-long.avi',
                                                          cv2.VideoWriter_fourcc(*'MJPG'),
                                                          val, (self.FRAME_WIDTH, self.FRAME_HEIGHT), False)
                 
@@ -221,7 +220,7 @@ class PoolRun:
 
         timer = PreciseTime()
 
-        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{fn_start}\\zebrafish-tracker.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
+        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{exp_folder}\\zebrafish-tracker.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
         r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)
            
@@ -263,7 +262,7 @@ class PoolRun:
         detected_centroids = []
 
         FRAMES_TO_SAVE_AFTER = 1800
-        output_filepath =  f'{fn_start}pre-processed.csv'
+        output_filepath =  f'{exp_folder}\\pre-processed.csv'
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32)
 
@@ -410,7 +409,7 @@ class PoolRun:
         timer = PreciseTime()
 
         counter = 0
-        schedule_times = pd.read_csv(f"{fn_start}scheduled-events", sep="\t", header=None)
+        schedule_times = pd.read_csv(f"{exp_folder}\scheduled-events", sep="\t", header=None)
         num_of_instructions = schedule_times.shape[0]
         first_time = True
         end_time = np.inf
