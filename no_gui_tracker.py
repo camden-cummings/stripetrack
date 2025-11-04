@@ -22,7 +22,8 @@ from command_reader import process_command_string
 from mode_finder import ModeFinder
 from precise_time import PreciseTime
 from sort_contours_by_area import sort_contours_by_area
-from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x__ as correlate1d_x, correlate1d_y, run_math, normalize_diff, setup as ssim_setup, generate_weights
+from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
+from strsim_for_speed.computer_vision.speedy_str_sim_as_a_class import SpeedyCV
 
 import logging
 import argparse
@@ -61,6 +62,12 @@ parser.add_argument(
    action='store_true'
 )
 
+parser.add_argument(
+   "-m",
+   "--mode",
+   action='store_true'
+)
+
 args = parser.parse_args()
 exp_folder = args.exp_folder
 
@@ -70,8 +77,8 @@ logging.basicConfig(filename=f'{exp_folder}\\run.log', encoding='utf-8', level=l
 class PoolRun:
     def __init__(self):
         self.FRAME_WIDTH, self.FRAME_HEIGHT = 992, 660
-
         #self.FRAME_WIDTH, self.FRAME_HEIGHT = 1760, 1200
+        self.spd = SpeedyCV(self.FRAME_HEIGHT, self.FRAME_WIDTH)
 
     # TODO this might be able to be static
     def video_pool(self, img_queue, done, fps_commands, recording_queue):
@@ -89,7 +96,6 @@ class PoolRun:
             cam = cam_list[0]
 
             nodemap, nodemap_tldevice = setup_nodemap(cam)
-            #        logger.info('*** IMAGE ACQUISITION ***\n')
 
             set_node_acquisition_mode(nodemap)
 
@@ -114,7 +120,6 @@ class PoolRun:
                     recording_queue.put([image, time])
                     vidcount += 1
 
-                # TODO is this necessary anymore (?)
                 if img_queue.qsize() > 11:
                     print("qsize", img_queue.qsize(), fps)
                     while img_queue.qsize() > 2:
@@ -175,7 +180,6 @@ class PoolRun:
     def video_recorder_pool(self, recording_queue, recording_commands, done):
         start_time = -1
         end_time = -1
-        vidcount = 0
         result = None
         while not done.is_set():
             try:
@@ -206,10 +210,7 @@ class PoolRun:
                 
                 if start_time != -1 and start_time < time < end_time:#and vidcount <= 285:
                     result.write(image)
-                    vidcount += 1
-                elif time == end_time:
-                    vidcount = 0
-                    
+
             except Exception as e:
                 logger.error(f"video recorder failed at: {e}")
                 logger.error(gc.get_stats())
@@ -223,41 +224,13 @@ class PoolRun:
         cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{exp_folder}\\zebrafish-tracker.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
         r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)
-           
+        mode = args.mode
+        
         image = img_queue.get()
 
         frame_counter = 0
         
-        data_range = 255
-
-        weights, cov_norm = generate_weights(ndim=2, sigma=1.5, truncate=3.5)
-        
-        weight_size = len(weights)
-        size1 = math.floor(weight_size / 2)
-        size2 = weight_size - size1 - 1
-
-        np_weights = np.asarray(weights, dtype=np.float32)
-
-        ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = ssim_setup(self.FRAME_HEIGHT, self.FRAME_WIDTH, order='C', data_type=np.float32)
-        ux, uy, uxx, uyy, uxy = ssim_setup(self.FRAME_HEIGHT, self.FRAME_WIDTH, order='C', data_type=np.float32) # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
-        vy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT), order='C')
-        uy_squared = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT), order='C')
-
-        diff = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), order='C', dtype=np.uint8)
-        S = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT), order='C', dtype=np.float64)
-        
-        S = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
-        S_t = S.T
-                
-        normalize_diff(S_t, self.FRAME_WIDTH, self.FRAME_HEIGHT, diff)
-
-        rearr = np.concatenate((image[0:size1][::-1], image, image[-size2:][::-1]))
-        rearr = rearr.astype(dtype=np.float32)
-        correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uyy_tmp)
-
-        #T = uyy_tmp.transpose()
-        rearr = np.concatenate((uyy_tmp[0:size1][::-1], uyy_tmp, uyy_tmp[-size2:][::-1]), axis=0)
-        correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uyy)
+        vy = np.zeros((self.FRAME_WIDTH, self.FRAME_HEIGHT), order='C')   
         
         detected_centroids = []
 
@@ -266,113 +239,70 @@ class PoolRun:
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32)
 
-        #pr = cProfile.Profile()
-        #pr.enable()
-        
         while not done.is_set():
             try:
+                pr = cProfile.Profile()
+                pr.enable()
+
                 image = img_queue.get()
 
                 arr_time = str(timer.formatted_time(timer.now())).strip("[]").split(", ")
                 time = "_".join(arr_time)
-#                logger.info(time)
-#                logger.info(img_queue.qsize())
+
                 print(time, img_queue.qsize())
-                #if (0 <= int(arr_time[1]) <= 10 and not r.found_mode) or (r.mode_noblur_img is None):
-                #    r.find_mode(frame_counter, image)
-                #elif arr_time[1] == 11:
-                #    r.found_mode = False
-                
-                
+
                 if r.mode_noblur_img is None:
                     r.find_mode(frame_counter, image)
-                
-                # TODO make clean way to go between mode method & prev2curr method
-                if r.mode_noblur_img is not None:
+                else:
                     if r.mode_updated:
                         print('setting up')
-                        mode_noblur_img = r.mode_noblur_img.astype(np.float32, copy=False)
-                        masked_mode_noblur_img = cv2.bitwise_and(
-                            mode_noblur_img, mode_noblur_img, mask=contour_mask)
-                        masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float32, copy=False)
+                        
+                        if mode:
+                            mode_noblur_img = r.mode_noblur_img.astype(np.float32, copy=False)
+                            masked_mode_noblur_img = cv2.bitwise_and(
+                                mode_noblur_img, mode_noblur_img, mask=contour_mask)
+                            masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float32, copy=False)
+                            
+                            self.spd.run_mode(masked_mode_noblur_img)
+
+                        last_confident_centroid = [[cell_centers[i][j] for j in range(shape_of_rows[i])] for i in range(len(shape_of_rows))]
                         r.mode_updated = False
                         
-                        """
-                        rearr = np.concatenate((masked_mode_noblur_img[0:size1][::-1], masked_mode_noblur_img, masked_mode_noblur_img[-size2:][::-1]))
-                        correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uy_tmp)  # , curr_scipy)
-                        
-                        rearr = np.concatenate((uy_tmp[0:size1][::-1], uy_tmp, uy_tmp[-size2:][::-1]), axis=0)
-                        correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uy)  # , curr_scipy)
-                                        
-                        inp = masked_mode_noblur_img * masked_mode_noblur_img
-                        rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
-                        correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uyy_tmp)  # , curr_scipy)
-                        
-                        rearr = np.concatenate((uyy_tmp[0:size1][::-1], uyy_tmp, uyy_tmp[-size2:][::-1]), axis=0)
-                        correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uyy)  # , curr_scipy)
-                        
-                        uy_squared = uy * uy
-                        vy = cov_norm * (uyy - uy_squared)
-                        """
-                        
-                        last_confident_centroid = [[cell_centers[i][j] for j in range(shape_of_rows[i])] for i in range(len(shape_of_rows))]
-
                     masked_curr_img = cv2.bitwise_and(image, image, mask=contour_mask)
-                    #cv2.imshow('frame', masked_curr_img)
-                    masked_curr_img = masked_curr_img.astype(np.float32, copy=False)#, order='C')
-                    
-                    
-                    #UX
-                    rearr = np.concatenate((masked_curr_img[0:size1][::-1], masked_curr_img, masked_curr_img[-size2:][::-1]))
-                    correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, ux_tmp)
+                    masked_curr_img = masked_curr_img.astype(np.float32, copy=False)
 
-                    rearr = np.concatenate((ux_tmp[0:size1][::-1], ux_tmp, ux_tmp[-size2:][::-1]), axis=0)
-                    correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, ux) 
+                    self.spd.run_corr(masked_curr_img)
 
-                    #UXX
-                    inp = np.multiply(masked_curr_img, masked_curr_img)
-                    rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
-                    correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uxx_tmp)
-                    
-                    rearr = np.concatenate((uxx_tmp[0:size1][::-1], uxx_tmp, uxx_tmp[-size2:][::-1]), axis=0)
-                    correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uxx)
-                       
-                    #UXY
-                    inp = np.multiply(masked_curr_img, prev_masked_img)
-                    rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
-                    correlate1d_x(rearr, np_weights, weight_size, self.FRAME_HEIGHT, uxy_tmp) 
-                    
-                    rearr = np.concatenate((uxy_tmp[0:size1][::-1], uxy_tmp, uxy_tmp[-size2:][::-1]), axis=0)
-                    correlate1d_y(rearr, np_weights, weight_size, self.FRAME_WIDTH, uxy)
+                    if mode:
+                        self.spd.run_against(masked_mode_noblur_img, masked_curr_img)
+                        S = run_math_complete(self.spd.cov_norm, self.spd.data_range, self.spd.ux, self.spd.uy, self.spd.uxx, self.spd.uyy, self.spd.uxy)    
+                    else:
+                        self.spd.run_against(prev_masked_img, masked_curr_img)
+                        S = run_math(self.spd.cov_norm, self.spd.data_range, self.spd.ux, self.spd.uy, self.spd.uxx, vy, self.spd.uxy)
 
-                    #S = run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy)    
-                    
-                    S = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
-                    #cv2.imshow('frameS', S)
                     S_t = S.T
-                    
-                    #cv2.imshow('frameS_t', S_t)
-
-                    normalize_diff(S_t, self.FRAME_WIDTH, self.FRAME_HEIGHT, diff)
+                    normalize_diff(S_t, self.FRAME_WIDTH, self.FRAME_HEIGHT, self.spd.out)
                     
                     if args.view:
                         cv2.imshow('frame', image)
-                        cv2.imshow('diff', diff)
+                        cv2.imshow('diff', self.spd.out)
 
                         if cv2.waitKey(1) == 1:
                             break
                         
-                    prev_masked_img = masked_curr_img
-                    
-                    uy = np.copy(ux)
-                    uy_squared = np.multiply(uy, uy)
-                    vy = np.multiply(cov_norm, (uxx - uy_squared))
-                    
-                    thresh_img = cv2.threshold(diff, 155, 255, cv2.THRESH_BINARY)[1]
+                    if not mode:
+                        prev_masked_img = masked_curr_img
+                        
+                        uy = self.spd.ux.copy()
+                        self.spd.uy = uy
+                        uy_squared = np.multiply(uy, uy)
+                        vy = self.spd.cov_norm * (self.spd.uxx - uy_squared)
+                        
+                    thresh_img = cv2.threshold(self.spd.out, 155, 255, cv2.THRESH_BINARY)[1]
                     contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                     contours = contours[0] if len(contours) == 2 else contours[1]
 
-                    sorted_contours = sort_contours_by_area(contours, last_confident_centroid, frame_counter, time, diff, contour_mask, shape_of_rows, cell_contours, cell_centers, 50)
+                    sorted_contours = sort_contours_by_area(contours, last_confident_centroid, frame_counter, time, self.spd.out, contour_mask, shape_of_rows, cell_contours, cell_centers, 50)
                     
                     detected_centroids.extend(sorted_contours)
                     
@@ -382,16 +312,18 @@ class PoolRun:
 
                 frame_counter += 1
 
+                pr.disable()
+                s = io.StringIO()
+                sortby = SortKey.CUMULATIVE
+                ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                ps.print_stats()
+                print("tracker pool", s.getvalue())
+        
             except Exception as e:
                 logger.error(f"tracking failed because: {e}")
                 logger.error(gc.get_stats())
 
-        #pr.disable()
-        #s = io.StringIO()
-        #sortby = SortKey.CUMULATIVE
-        #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        #ps.print_stats()
-        #print("tracker pool", s.getvalue())
+
             
     @staticmethod
     def save_centroids_to_csv(output_filepath, detected_centroids):
