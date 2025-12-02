@@ -21,7 +21,7 @@ from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_
 from command_reader import process_command_string
 from mode_finder import ModeFinder
 from precise_time import PreciseTime
-from sort_contours_by_area import sort_contours_by_area
+from sort_contours_by_area import SortContours
 from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
 from strsim_for_speed.computer_vision.speedy_str_sim_as_a_class import SpeedyCV
 
@@ -70,6 +70,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 exp_folder = args.exp_folder
+event_schedule = args.event_schedule
+rois_fname = args.rois_fname
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename=f'{exp_folder}\\run.log', encoding='utf-8', level=logging.DEBUG)
@@ -78,7 +80,6 @@ class PoolRun:
     def __init__(self):
         self.FRAME_WIDTH, self.FRAME_HEIGHT = 992, 660
         #self.FRAME_WIDTH, self.FRAME_HEIGHT = 1760, 1200
-        self.spd = SpeedyCV(self.FRAME_HEIGHT, self.FRAME_WIDTH)
 
     # TODO this might be able to be static
     def video_pool(self, img_queue, done, fps_commands, recording_queue):
@@ -121,7 +122,7 @@ class PoolRun:
                     vidcount += 1
 
                 if img_queue.qsize() > 11:
-                    print("qsize", img_queue.qsize(), fps)
+                    #print("qsize", img_queue.qsize(), fps)
                     while img_queue.qsize() > 2:
                         try:
                             img_queue.get()
@@ -221,10 +222,13 @@ class PoolRun:
 
         timer = PreciseTime()
 
-        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{exp_folder}\\zebrafish-tracker.cells", self.FRAME_WIDTH, self.FRAME_HEIGHT)
+        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{exp_folder}{rois_fname}", self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
         r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)
         mode = args.mode
+        
+        sc = SortContours(contour_mask, shape_of_rows, cell_contours, cell_centers)
+        spd = SpeedyCV(self.FRAME_HEIGHT, self.FRAME_WIDTH)
         
         image = img_queue.get()
 
@@ -238,18 +242,18 @@ class PoolRun:
         output_filepath =  f'{exp_folder}\\pre-processed.csv'
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32)
-
+        
         while not done.is_set():
             try:
-                pr = cProfile.Profile()
-                pr.enable()
-
+                #pr = cProfile.Profile()
+                #pr.enable()
+                
                 image = img_queue.get()
 
                 arr_time = str(timer.formatted_time(timer.now())).strip("[]").split(", ")
                 time = "_".join(arr_time)
 
-                print(time, img_queue.qsize())
+               # print(time, img_queue.qsize())
 
                 if r.mode_noblur_img is None:
                     r.find_mode(frame_counter, image)
@@ -263,68 +267,70 @@ class PoolRun:
                                 mode_noblur_img, mode_noblur_img, mask=contour_mask)
                             masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float32, copy=False)
                             
-                            self.spd.run_mode(masked_mode_noblur_img)
+                            spd.run_mode(masked_mode_noblur_img)
 
-                        last_confident_centroid = [[cell_centers[i][j] for j in range(shape_of_rows[i])] for i in range(len(shape_of_rows))]
                         r.mode_updated = False
                         
                     masked_curr_img = cv2.bitwise_and(image, image, mask=contour_mask)
                     masked_curr_img = masked_curr_img.astype(np.float32, copy=False)
 
-                    self.spd.run_corr(masked_curr_img)
+                    spd.run_corr(masked_curr_img)
 
                     if mode:
-                        self.spd.run_against(masked_mode_noblur_img, masked_curr_img)
-                        S = run_math_complete(self.spd.cov_norm, self.spd.data_range, self.spd.ux, self.spd.uy, self.spd.uxx, self.spd.uyy, self.spd.uxy)    
+                        spd.run_against(masked_mode_noblur_img, masked_curr_img)
+                        S = run_math_complete(spd.cov_norm, spd.data_range, spd.ux, spd.uy, spd.uxx, spd.uyy, spd.uxy)    
                     else:
-                        self.spd.run_against(prev_masked_img, masked_curr_img)
-                        S = run_math(self.spd.cov_norm, self.spd.data_range, self.spd.ux, self.spd.uy, self.spd.uxx, vy, self.spd.uxy)
+                        spd.run_against(prev_masked_img, masked_curr_img)
+                        S = run_math(spd.cov_norm, spd.data_range, spd.ux, spd.uy, spd.uxx, vy, spd.uxy)
 
                     S_t = S.T
-                    normalize_diff(S_t, self.FRAME_WIDTH, self.FRAME_HEIGHT, self.spd.out)
+                    normalize_diff(S_t, self.FRAME_WIDTH, self.FRAME_HEIGHT, spd.out)
+                    
+                    if not mode:
+                        prev_masked_img = masked_curr_img
+                        
+                        uy = spd.ux.copy()
+                        spd.uy = uy
+                        uy_squared = np.multiply(uy, uy)
+                        vy = spd.cov_norm * (spd.uxx - uy_squared)
+                        
+                    thresh_img = cv2.threshold(spd.out, 155, 255, cv2.THRESH_BINARY)[1]
+                    contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+                    contours = contours[0] if len(contours) == 2 else contours[1]
+
+                    sorted_contours = sc.sort_contours_by_area(contours, frame_counter, time, spd.out)
+                    
+                    detected_centroids.extend(sorted_contours)
                     
                     if args.view:
+                        for time, frame_count, row, col, x, y in sorted_contours:
+                            cv2.circle(image, (x, y), 1, (0, 0, 255), 5, cv2.LINE_4)
+                        
                         cv2.imshow('frame', image)
-                        cv2.imshow('diff', self.spd.out)
+                        cv2.imshow('diff', spd.out)
 
                         if cv2.waitKey(1) == 1:
                             break
                         
-                    if not mode:
-                        prev_masked_img = masked_curr_img
-                        
-                        uy = self.spd.ux.copy()
-                        self.spd.uy = uy
-                        uy_squared = np.multiply(uy, uy)
-                        vy = self.spd.cov_norm * (self.spd.uxx - uy_squared)
-                        
-                    thresh_img = cv2.threshold(self.spd.out, 155, 255, cv2.THRESH_BINARY)[1]
-                    contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-                    contours = contours[0] if len(contours) == 2 else contours[1]
-
-                    sorted_contours = sort_contours_by_area(contours, last_confident_centroid, frame_counter, time, self.spd.out, contour_mask, shape_of_rows, cell_contours, cell_centers, 50)
-                    
-                    detected_centroids.extend(sorted_contours)
-                    
                     if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(detected_centroids) > 0:
                         self.save_centroids_to_csv(output_filepath, detected_centroids)
                         detected_centroids.clear()
 
                 frame_counter += 1
+                
+                #pr.disable()
+                #s = io.StringIO()
+                #sortby = SortKey.CUMULATIVE
+                #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                #ps.print_stats()
+                #print("tracker pool", s.getvalue())
 
-                pr.disable()
-                s = io.StringIO()
-                sortby = SortKey.CUMULATIVE
-                ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-                ps.print_stats()
-                print("tracker pool", s.getvalue())
-        
             except Exception as e:
                 logger.error(f"tracking failed because: {e}")
                 logger.error(gc.get_stats())
 
 
-            
+    
     @staticmethod
     def save_centroids_to_csv(output_filepath, detected_centroids):
         if not os.path.exists(output_filepath):
@@ -341,20 +347,20 @@ class PoolRun:
         timer = PreciseTime()
 
         counter = 0
-        schedule_times = pd.read_csv(f"{exp_folder}\scheduled-events", sep="\t", header=None)
+        schedule_times = pd.read_csv(f"{exp_folder}\{event_schedule}", sep="\t", header=None)
         num_of_instructions = schedule_times.shape[0]
         first_time = True
         end_time = np.inf
         dev = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
 
-        #pr = cProfile.Profile()
-        #pr.enable()
+        pr = cProfile.Profile()
+        pr.enable()
         while counter < num_of_instructions and not done.is_set():
             try:
                 if first_time:  # setup all necessary pieces
                     at_time, command_string, type_of_video = process_command_string(
                         schedule_times.iloc[counter])
-                    #logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
+                    logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
                     print(f"COMMANDS: {at_time} {command_string} {type_of_video}")
                     if type_of_video == 0:
                         duration = 0
@@ -363,11 +369,10 @@ class PoolRun:
                     else: # long video
                         duration = 1800
 
-                    diff = at_time - int(timer.now() % 86400 - 3600*4)
-                    print(diff)
+                    diff = at_time - int(timer.now() % 86400 - 3600*5)
                     
                     if abs(diff) > 120:
-                        #logger.info("sending val to fps")
+                        logger.info("sending val to fps")
                         print(f"sending {val} to fps")
                         fps_commands.send(val)
                         
@@ -375,26 +380,39 @@ class PoolRun:
 
                     first_time = False
                     sent = False
+                    last_time = 0
+                    last_time_2 = 0
+                    
                 
+                curr_time = int(timer.now() % 86400 - 3600*5)
+                #print(curr_time, at_time)
+#                if curr_time == at_time:
+#                    print("!")
 
-#                formatted_time = timer.formatted_time(timer.now())
-#                print(timer.now() % 86400 - 3600*4)
-                curr_time = int(timer.now() % 86400 - 3600*4)
+                if last_time_2 != curr_time:
+                    current_time = timer.now()
+                    logger.info(f"h {curr_time}, {at_time}, {end_time}, {type_of_video}, {type_of_video == 2} {current_time} {current_time % 86400}")
+                last_time_2 = curr_time
+                
                 if (curr_time == at_time and (
                         type_of_video == 1 or type_of_video == 0)) or (
                         curr_time >= at_time and type_of_video == 2):
+                                
+                    if last_time != curr_time:
+                        logger.info(f"h {curr_time}, {at_time}, {end_time}")
+                    last_time = curr_time
                     if end_time == np.inf:                        
                         start_time = int(timer.now())
                         end_time = start_time + duration
                         recording_commands.send(["start_now", start_time, "end_now", end_time])
-                        #print(start_time, end_time)
+                        logger.info(f"! {start_time}, {end_time}")
                         if duration != 0:
                             if type_of_video == 1:
-                                #logger.info("sending 285.0")
+                                logger.info("sending 285.0")
                                 print("sending 285.0")
                                 fps_commands.send(285.0)
                             else:
-                                #logger.info(f"sending {val}")
+                                logger.info(f"sending {val}")
                                 print(f"sending {val}")
                                 fps_commands.send(val)
                                 
@@ -407,8 +425,10 @@ class PoolRun:
                         print("SENDING")
                         fps_commands.send(285.0)
                         sent = True
-
+                
+                #logger.info(f"{timer.now()}, {end_time}")
                 if timer.now() >= end_time:
+                    print('incrementing timer, setting first time to true, setting end time to np.inf')
                     counter += 1
                     first_time = True
                     end_time = np.inf
@@ -422,12 +442,12 @@ class PoolRun:
         done.set()
     
     
-        #pr.disable()
-        #s = io.StringIO()
-        #sortby = SortKey.CUMULATIVE
-        #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        #ps.print_stats()
-        #print("printer pool", s.getvalue())
+        pr.disable()
+        s = io.StringIO()
+        sortby = SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print("printer pool", s.getvalue())
 
 
 if __name__ == '__main__':
