@@ -33,7 +33,9 @@ class GUIHelpers(GUI):
         self.cell_contours = []
         self.cell_centers = []
         self.shape_of_rows = []
-        
+
+        self.show_detected_contours = False
+
         self.show_only_inside_contours = False
         self.contour_overlay = False
         self.contours_updated = False
@@ -59,16 +61,19 @@ class GUIHelpers(GUI):
                 self.contour_overlay = False
                 self.state_manager.disable = False
             case "Contour Overlay":
-                self.contour_overlay = True
-                self.contours_updated = True
-                self.state_manager.disable = True
-
                 self.cell_contours, contour_mask, self.cell_centers, self.shape_of_rows = convert_to_contours(
                     self.state_manager.roi_interface.convert_rois_to_np_array(self.state_manager.roi_interface.rois),
                     self.frame_width, self.frame_height)
 
+                self.contour_overlay = True
+                self.contours_updated = True
+                self.state_manager.disable = True
+
     def only_selected_contours(self, _, show_only_inside_contours):
         self.show_only_inside_contours = show_only_inside_contours
+
+    def show_detected_contours_callback(self, _, show_detected_contours):
+        self.show_detected_contours = show_detected_contours
 
     def setup_elements(self, window):
         raw_data = np.zeros((self.frame_height, self.frame_width, 3), dtype=np.float32)
@@ -128,16 +133,25 @@ class GUIHelpers(GUI):
                         dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
 
                     with dpg.tree_node(label="Computer Vision Options", default_open=True):
-                        dpg.add_combo(("No Contours", "Structural Similarity Prev2Curr", "Diff Prev2Curr", "Structural Similarity Mode", "Diff Mode"),
+                        dpg.add_combo(("No Contours", "Structural Similarity Prev2Curr", "Diff Prev2Curr", "Structural Similarity Mode", "Diff Mode", "Threshold"),
                                       label="Contour Detecting Algorithm", callback=self.contour_definer.cv_alg_change,
                                       default_value="No Contours", width=180)
                         with dpg.group(width=300):
                             dpg.add_slider_float(label="Threshold", callback=self.contour_definer.threshold_change,
                                                  min_value=0, max_value=255, default_value=self.contour_definer.thresh)
                             dpg.add_slider_float(label="Centroid Size", callback=self.contour_definer.centroid_change,
-                                                 max_value=1000, default_value=self.contour_definer.centroid_size)
+                                                 max_value=1000, default_value=self.contour_definer.min_centroid_size)
+                            dpg.add_slider_float(label="Dist", callback=self.contour_definer.dist_change,
+                                                 max_value=self.contour_definer.dist*10, default_value=self.contour_definer.dist)
+                            dpg.add_slider_float(label="Sigma", callback=self.contour_definer.sigma_change, min_value = 0.5,
+                                                 max_value=self.contour_definer.sigma*10, default_value=self.contour_definer.sigma)
+                            dpg.add_slider_float(label="Truncate", callback=self.contour_definer.truncate_change,
+                                                 max_value=self.contour_definer.truncate*10, default_value=self.contour_definer.truncate)
+                            dpg.add_slider_float(label="Truncate", callback=self.contour_definer.white_thresh_change, min_value = 0,
+                                                 max_value=255, default_value=self.contour_definer.white_thresh)
                         status = dpg.add_text("Status: Calculating Mode / Not Ready")
 
+                        dpg.add_checkbox(label="Show Contours", callback=self.show_detected_contours_callback)
 #                        dpg.add_checkbox(label="Only Show ROIs Inside Selected Contours",
 #                                         callback=self.only_selected_contours)
 
