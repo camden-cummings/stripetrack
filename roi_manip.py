@@ -140,6 +140,13 @@ def convert_to_contours(cell_filename, frame_width, frame_height):
     print("roimanip",cell_centers)
     return cell_contours, contour_mask, cell_centers, shape_of_rows
 
+def get_cell_bounds(cell_contours):
+    bounds = []
+    for c in cell_contours:
+        x, y, w, h = cv2.boundingRect(c)
+        bounds.append([x, y, x+w, y+h])
+    return bounds
+
 def find_centroid_of_contour(contour):
     """Given a contour, finds centroid of it."""
     M = cv2.moments(contour)
