@@ -41,7 +41,7 @@ parser.add_argument(
 parser.add_argument(
    "-rois_fname",
    "--rois_fname",
-   required=True
+   required=False
 )
 
 parser.add_argument(
@@ -122,7 +122,7 @@ class PoolRun:
                     vidcount += 1
 
                 if img_queue.qsize() > 11:
-                    #print("qsize", img_queue.qsize(), fps)
+                    print("qsize", img_queue.qsize())
                     while img_queue.qsize() > 2:
                         try:
                             img_queue.get()
@@ -189,7 +189,6 @@ class PoolRun:
                 if time > end_time:
                     if recording_commands.poll():
                         cmds = recording_commands.recv()
-
                         if cmds[0] == "start_now":
                             start_time = cmds[1]
                             end_time = cmds[3]
@@ -198,7 +197,7 @@ class PoolRun:
                             
 #                            if result is not None:                            
 #                                result.release()
-
+                            print('making vid')
                             vid_name = f"{int(at_time / 3600)}_{int((at_time % 3600)/60)}_{int(at_time % 60)}-{str(counter)}"
                             if type_of_video == 1:
                                 result = cv2.VideoWriter(f'{exp_folder}{vid_name}.avi',
@@ -208,6 +207,7 @@ class PoolRun:
                                 result = cv2.VideoWriter(f'{exp_folder}{vid_name}-long.avi',
                                                          cv2.VideoWriter_fourcc(*'MJPG'),
                                                          val, (self.FRAME_WIDTH, self.FRAME_HEIGHT), False)
+                
                 
                 if start_time != -1 and start_time < time < end_time:#and vidcount <= 285:
                     result.write(image)
@@ -222,12 +222,12 @@ class PoolRun:
 
         timer = PreciseTime()
 
-        cell_contours, contour_mask, cell_centers, shape_of_rows = convert_to_contours(f"{exp_folder}{rois_fname}", self.FRAME_WIDTH, self.FRAME_HEIGHT)
+        cell_contours, contour_mask, cell_centers, cell_bounds, shape_of_rows = convert_to_contours(f"{exp_folder}{rois_fname}", self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
         r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)
         mode = args.mode
         
-        sc = SortContours(contour_mask, shape_of_rows, cell_contours, cell_centers)
+        sc = SortContours(contour_mask, shape_of_rows, cell_contours, cell_centers, cell_bounds)
         spd = SpeedyCV(self.FRAME_HEIGHT, self.FRAME_WIDTH)
         
         image = img_queue.get()
@@ -238,20 +238,20 @@ class PoolRun:
         
         detected_centroids = []
 
-        FRAMES_TO_SAVE_AFTER = 1800
+        FRAMES_TO_SAVE_AFTER = 600
         output_filepath =  f'{exp_folder}\\pre-processed.csv'
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32)
+        prev_thresh_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32)
         
         while not done.is_set():
             try:
-                #pr = cProfile.Profile()
-                #pr.enable()
+
                 
                 image = img_queue.get()
 
                 arr_time = str(timer.formatted_time(timer.now())).strip("[]").split(", ")
-                time = "_".join(arr_time)
+                curr_time = "_".join(arr_time)
 
                # print(time, img_queue.qsize())
 
@@ -297,11 +297,27 @@ class PoolRun:
                     thresh_img = cv2.threshold(spd.out, 155, 255, cv2.THRESH_BINARY)[1]
                     contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                     contours = contours[0] if len(contours) == 2 else contours[1]
+                    
+                    #pr = cProfile.Profile()
+                    #pr.enable()
+                    
+                    #t1 = timer.now()
 
-                    sorted_contours = sc.sort_contours_by_area(contours, frame_counter, time, spd.out)
+                    #sc.set_contours(contours)
+                    #sc.set_diff(spd.out)
+                    dpix_im = prev_thresh_img - thresh_img
+                    sorted_contours = sc.sort_contours_by_area(contours, frame_counter, curr_time, spd.out, dpix_im)
+                    #print('tout', timer.now() - t1)
+
+                    #pr.disable()
+                    #s = io.StringIO()
+                    #sortby = SortKey.CUMULATIVE
+                    #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                    #ps.print_stats()
+                    #print("tracker pool", s.getvalue())
                     
                     detected_centroids.extend(sorted_contours)
-                    
+
                     if args.view:
                         for time, frame_count, row, col, x, y in sorted_contours:
                             cv2.circle(image, (x, y), 1, (0, 0, 255), 5, cv2.LINE_4)
@@ -311,19 +327,14 @@ class PoolRun:
 
                         if cv2.waitKey(1) == 1:
                             break
-                        
+                    
+                    prev_thresh_img = thresh_img
                     if frame_counter % FRAMES_TO_SAVE_AFTER == 0 and len(detected_centroids) > 0:
+                        #print(frame_counter, np.array(detected_centroids).shape)
                         self.save_centroids_to_csv(output_filepath, detected_centroids)
                         detected_centroids.clear()
 
                 frame_counter += 1
-                
-                #pr.disable()
-                #s = io.StringIO()
-                #sortby = SortKey.CUMULATIVE
-                #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-                #ps.print_stats()
-                #print("tracker pool", s.getvalue())
 
             except Exception as e:
                 logger.error(f"tracking failed because: {e}")
@@ -335,11 +346,11 @@ class PoolRun:
     def save_centroids_to_csv(output_filepath, detected_centroids):
         if not os.path.exists(output_filepath):
             new = pd.DataFrame(np.matrix(detected_centroids),
-                               columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
+                               columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y', 'dpix'])
             new.to_csv(output_filepath, sep=',', index=False)
         else:
             new = pd.DataFrame(np.matrix(detected_centroids),
-                               columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y'])
+                               columns=['time', 'frame', 'row', 'col', 'pos_x', 'pos_y', 'dpix'])
             new.to_csv(output_filepath, sep=',', mode='a', index=False, header=False)
 
     #    @profile
@@ -353,8 +364,8 @@ class PoolRun:
         end_time = np.inf
         dev = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
 
-        pr = cProfile.Profile()
-        pr.enable()
+        #pr = cProfile.Profile()
+        #pr.enable()
         while counter < num_of_instructions and not done.is_set():
             try:
                 if first_time:  # setup all necessary pieces
@@ -369,7 +380,7 @@ class PoolRun:
                     else: # long video
                         duration = 1800
 
-                    diff = at_time - int(timer.now() % 86400 - 3600*5)
+                    diff = at_time - int(timer.now() - 3600*5) % 86400
                     
                     if abs(diff) > 120:
                         logger.info("sending val to fps")
@@ -380,32 +391,33 @@ class PoolRun:
 
                     first_time = False
                     sent = False
-                    last_time = 0
-                    last_time_2 = 0
+                    #last_time = 0
+                    #last_time_2 = 0
                     
                 
-                curr_time = int(timer.now() % 86400 - 3600*5)
+                curr_time = int(timer.now() - 3600*5) % 86400
                 #print(curr_time, at_time)
 #                if curr_time == at_time:
 #                    print("!")
 
-                if last_time_2 != curr_time:
-                    current_time = timer.now()
-                    logger.info(f"h {curr_time}, {at_time}, {end_time}, {type_of_video}, {type_of_video == 2} {current_time} {current_time % 86400}")
-                last_time_2 = curr_time
+                #if last_time_2 != curr_time:
+                #    current_time = timer.now()
+                #    logger.info(f"h {curr_time}, {at_time}, {end_time}, {type_of_video}, {type_of_video == 2} {current_time} {current_time % 86400}")
+                #last_time_2 = curr_time
                 
                 if (curr_time == at_time and (
                         type_of_video == 1 or type_of_video == 0)) or (
                         curr_time >= at_time and type_of_video == 2):
                                 
-                    if last_time != curr_time:
-                        logger.info(f"h {curr_time}, {at_time}, {end_time}")
-                    last_time = curr_time
+                    #if last_time != curr_time:
+                    #    logger.info(f"h {curr_time}, {at_time}, {end_time}")
+                    #last_time = curr_time
                     if end_time == np.inf:                        
                         start_time = int(timer.now())
                         end_time = start_time + duration
                         recording_commands.send(["start_now", start_time, "end_now", end_time])
                         logger.info(f"! {start_time}, {end_time}")
+                        print(f"! starting now {start_time}, {end_time}")
                         if duration != 0:
                             if type_of_video == 1:
                                 logger.info("sending 285.0")
@@ -442,12 +454,12 @@ class PoolRun:
         done.set()
     
     
-        pr.disable()
-        s = io.StringIO()
-        sortby = SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print("printer pool", s.getvalue())
+        #pr.disable()
+        #s = io.StringIO()
+        #sortby = SortKey.CUMULATIVE
+        #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        #ps.print_stats()
+        #print("printer pool", s.getvalue())
 
 
 if __name__ == '__main__':

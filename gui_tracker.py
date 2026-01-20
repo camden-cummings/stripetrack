@@ -14,7 +14,7 @@ from gui_helpers import GUIHelpers
 from mode_finder import ModeFinder
 from no_gui_tracker import PoolRun
 from precise_time import PreciseTime
-from sort_contours_by_area import sort_contours_by_area
+from sort_contours_by_area import SortContours
 from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, normalize_diff, setup as ssim_setup, generate_weights
 from strsim_for_speed.computer_vision.speedy_str_sim_as_a_class import SpeedyCV
 
@@ -30,12 +30,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
    "-exp_folder",
    "--exp_folder",
-   required=True
-)
-
-parser.add_argument(
-   "-rois_fname",
-   "--rois_fname",
    required=True
 )
 
@@ -84,8 +78,8 @@ class GUIPoolRun(PoolRun):
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32, order='C')
     
         while not done.is_set():    
-            pr = cProfile.Profile()
-            pr.enable()
+            #pr = cProfile.Profile()
+            #pr.enable()
       
             image = img_queue.get()
 
@@ -101,7 +95,7 @@ class GUIPoolRun(PoolRun):
                     for c in gui.cell_contours:
                         contour_mask = cv2.drawContours(contour_mask, [c],
                                                         -1, (255, 255, 255), thickness=cv2.FILLED)
-                        
+                    
                     mask = cv2.cvtColor(
                         np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
                     
@@ -185,12 +179,12 @@ class GUIPoolRun(PoolRun):
 
             dpg.render_dearpygui_frame()
                     
-            pr.disable()
-            s = io.StringIO()
-            sortby = SortKey.CUMULATIVE
-            ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-            ps.print_stats()
-            print("printer pool", s.getvalue())
+            #pr.disable()
+            #s = io.StringIO()
+            #sortby = SortKey.CUMULATIVE
+            #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+            #ps.print_stats()
+            #print("printer pool", s.getvalue())
 
         dpg.destroy_context()
 

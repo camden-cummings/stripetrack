@@ -20,7 +20,6 @@ from strsim_for_speed.computer_vision.helpers import calc_mode_img
 #TODO dump all of this nonsense into roiinterface
 
 def convert_to_contours(cell_filename, frame_width, frame_height): 
-    print(cell_filename)
     if isinstance(cell_filename, str):
         with open(cell_filename, 'rb') as f:
             rois = pickle.load(f)
@@ -75,6 +74,7 @@ def convert_to_contours(cell_filename, frame_width, frame_height):
 
     cell_contours = [[] for i in range(len(centers))]
     cell_centers = [[] for j in range(num_rows)]
+    cell_bounds = [[] for j in range(num_rows)]
 
     shape_of_rows = []
 
@@ -83,8 +83,17 @@ def convert_to_contours(cell_filename, frame_width, frame_height):
         shape_of_rows.append(num_cols)
         for col in range(num_cols):
             y_count = row * num_cols + col
-            print(y_count, reorg_centers[row][col])
+            
+            xs = reorg_centers[row][col][1][:, 0]
+            ys = reorg_centers[row][col][1][:, 1]
+
+            min_x = min(xs)
+            min_y = min(ys)
+            max_x = max(xs)
+            max_y = max(ys)
+            
             cell_centers[row].append(reorg_centers[row][col][0])
+            cell_bounds[row].append([min_x, min_y, max_x, max_y])
             cell_contours[y_count] = reorg_centers[row][col][1]
 
     contour_mask = np.zeros((frame_height, frame_width, 3))
@@ -97,7 +106,7 @@ def convert_to_contours(cell_filename, frame_width, frame_height):
     contour_mask = cv2.cvtColor(
         np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
     
-    return cell_contours, contour_mask, cell_centers, shape_of_rows
+    return cell_contours, contour_mask, cell_centers, cell_bounds, shape_of_rows
 
 def get_mode(vid_name, frame_width, frame_height):
     vidcap = cv2.VideoCapture(vid_name)
