@@ -13,7 +13,7 @@ from gui_helpers import GUIHelpers
 from mode_finder import ModeFinder
 from no_gui_tracker import PoolRun
 from precise_time import PreciseTime
-from sort_contours_by_area import sort_contours_by_area
+from sort_contours_by_area import SortContours
 from strsim_for_speed.computer_vision.structural_sim_from_scratch import run_math, normalize_diff
 from strsim_for_speed.computer_vision.speedy_str_sim_as_a_class import SpeedyCV
 from arg_helpers import setup_args, get_args
@@ -21,7 +21,32 @@ from arg_helpers import setup_args, get_args
 import logging
 import argparse
 
-fps = 30.0
+parser = argparse.ArgumentParser()
+
+parser.add_argument(
+   "-exp_folder",
+   "--exp_folder",
+   required=True
+)
+
+parser.add_argument(
+   "-event_schedule",
+   "--event_schedule",
+   required=True
+)
+
+parser.add_argument(
+   "-d",
+   "--debug",
+   action='store_true'
+)
+
+args = parser.parse_args()
+
+exp_folder = args.exp_folder
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename=f'{exp_folder}\\run.log', encoding='utf-8', level=logging.DEBUG)
 
 class GUIPoolRun(PoolRun):
     def tracking_pool(self, img_queue, done):
@@ -43,14 +68,14 @@ class GUIPoolRun(PoolRun):
         frame_counter = 0
             
         detected_centroids = []
-        
+
         output_filepath =  f'{exp_folder}\pre-processed.csv'
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32, order='C')
     
         while not done.is_set():    
-            pr = cProfile.Profile()
-            pr.enable()
+            #pr = cProfile.Profile()
+            #pr.enable()
       
             image = img_queue.get()
 
@@ -66,10 +91,10 @@ class GUIPoolRun(PoolRun):
                     for c in gui.cell_contours:
                         contour_mask = cv2.drawContours(contour_mask, [c],
                                                         -1, (255, 255, 255), thickness=cv2.FILLED)
-                        
+
                     mask = cv2.cvtColor(
                         np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
-                    
+
                     mode_noblur_img = r.mode_noblur_img.astype(np.float32, copy=False)
                     masked_mode_noblur_img = cv2.bitwise_and(
                         mode_noblur_img, mode_noblur_img, mask=mask)
@@ -78,7 +103,8 @@ class GUIPoolRun(PoolRun):
                     spd.run_mode(masked_mode_noblur_img)
                     uy_squared = spd.uy * spd.uy
                     vy = spd.cov_norm * spd.uyy - uy_squared
-                    
+
+                    sc = SortContours(contour_mask, gui.shape_of_rows, gui.cell_contours, gui.cell_centers, gui.cell_bounds)
                     last_confident_centroid = [[gui.cell_centers[i][j] for j in range(gui.shape_of_rows[i])] for i in range(len(gui.shape_of_rows))]
 
                     gui.contours_updated = False
@@ -123,7 +149,7 @@ class GUIPoolRun(PoolRun):
                 contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                 contours = contours[0] if len(contours) == 2 else contours[1]
 
-                sorted_contours = sort_contours_by_area(contours, last_confident_centroid, frame_counter, time_, spd.out, mask, gui.shape_of_rows, gui.cell_contours, gui.cell_centers, gui.contour_definer.centroid_size)
+                sorted_contours = sc.sort_contours_by_area(contours, last_confident_centroid, frame_counter, time_, spd.out)
 
                 detected_centroids.extend(sorted_contours)
 
@@ -150,35 +176,28 @@ class GUIPoolRun(PoolRun):
 
             dpg.render_dearpygui_frame()
                     
-            pr.disable()
-            s = io.StringIO()
-            sortby = SortKey.CUMULATIVE
-            ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-            ps.print_stats()
-            print("printer pool", s.getvalue())
+            #pr.disable()
+            #s = io.StringIO()
+            #sortby = SortKey.CUMULATIVE
+            #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+            #ps.print_stats()
+            #print("printer pool", s.getvalue())
 
         dpg.destroy_context()
 
         
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-v",
-        "--view",
-        action='store_true'
-    )
-
-    setup_args(parser)
-    args = parser.parse_args()
-    exp_folder, rois_fname, event_schedule, debug, mode = get_args(args)
-
-    view = args.view
+#    setup_args(parser)
+#    args = parser.parse_args()
+    #exp_folder, rois_fname, event_schedule, debug, mode = get_args(args)
 
     logger = logging.getLogger(__name__)
     logging.basicConfig(filename=f'{exp_folder}\\run.log', encoding='utf-8', level=logging.DEBUG)
 
-    poolrun = GUIPoolRun()
+    poolrun = GUIPoolRun(exp_folder)
 
+    print('Acquiring images...')
+    
     queue = multiprocessing.Queue()
     recording_queue = multiprocessing.Queue()
     done = multiprocessing.Event()
