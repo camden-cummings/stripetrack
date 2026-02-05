@@ -14,12 +14,12 @@ import numpy as np
 import pandas as pd
 import serial
 
-from command_reader import process_command_string
-from gui_helpers import GUIHelpers
-from mode_finder import ModeFinder
+from live_tracker.command_reader import process_command_string
+from live_tracker.gui_helpers import GUIHelpers
+from live_tracker.mode_finder import ModeFinder
 from no_gui_tracker import PoolRun
-from precise_time import PreciseTime
-from sort_contours_by_area import sort_contours_by_area
+from live_tracker.precise_time import PreciseTime
+from live_tracker.sort_contours_by_area import sort_contours_by_area
 from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
 from strsim_for_speed.computer_vision.profile_wrap import start_profiler, end_profiler
 # do this through GUI instead

@@ -13,9 +13,9 @@ import numpy as np
 from roi_selector_dearpygui.roi_selector_dearpygui.statemanager import StateManager
 from roi_selector_dearpygui.roi_selector_dearpygui.gui import GUI
 
-from roi_manip import convert_to_contours
+from live_tracker.roi_manip import convert_to_contours
 
-from contour_definer import ContourDefiner
+from live_tracker.contour_definer import ContourDefiner
 
 
 class GUIHelpers(GUI):

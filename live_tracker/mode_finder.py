@@ -1,9 +1,4 @@
 from multiprocessing import Pool
-# import cProfile, pstats, io
-# from pstats import SortKey
-
-import PySpin
-
 from strsim_for_speed.computer_vision.helpers import calc_mode
 
 
@@ -12,8 +7,8 @@ global run_once
 
 run_once = True
 
-DESIRED_MODE_FRAMES = 2#50
-FRAMES_TO_SAVE_AFTER = 2#100
+DESIRED_MODE_FRAMES = 50
+FRAMES_TO_SAVE_AFTER = 100
 
 class ModeFinder:
     def __init__(self, FRAME_WIDTH, FRAME_HEIGHT):
@@ -35,6 +30,7 @@ class ModeFinder:
         
         if len(self.movie_deq) < DESIRED_MODE_FRAMES and frame_counter % 50 == 0:
             self.movie_deq.append(image)
+            print('+1')
         elif len(self.movie_deq) >= DESIRED_MODE_FRAMES and run_once == True:
             pool = Pool(processes=1)
             self.async_result = pool.apply_async(calc_mode, (self.movie_deq, self.FRAME_HEIGHT, self.FRAME_WIDTH))

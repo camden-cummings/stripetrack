@@ -16,12 +16,12 @@ import numpy as np
 import pandas as pd
 import serial
 
-from roi_manip import convert_to_contours
-from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
-from command_reader import process_command_string
-from mode_finder import ModeFinder
-from precise_time import PreciseTime
-from sort_contours_by_area import sort_contours_by_area
+from live_tracker.roi_manip import convert_to_contours
+from live_tracker.camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
+from live_tracker.command_reader import process_command_string
+from live_tracker.mode_finder import ModeFinder
+from live_tracker.precise_time import PreciseTime
+from live_tracker.sort_contours_by_area import sort_contours_by_area
 from strsim_for_speed.computer_vision.structural_sim_from_scratch import correlate1d_x, correlate1d_y, run_math, run_math_complete, normalize_diff, setup as ssim_setup, generate_weights
 
 fn_start = "C:\\Users\\ThymeLab\\Desktop\\6-27-25-test\\"

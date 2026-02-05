@@ -7,13 +7,12 @@ Created on Fri Jan 31 14:44:39 2025
 """
 
 import pickle
-import os
 import math
 
 import numpy as np
 import cv2
 
-from roi_selector_dearpygui.roi_selector_dearpygui.interfaces.roipoly import RoiPoly
+from live_tracker.roipoly import RoiPoly
 
 #TODO add auto trimmer that finds dimensions that can trim the image to to still include all of every contour
 #TODO dump all of this nonsense into roiinterface
@@ -23,7 +22,7 @@ def convert_to_contours(cell_filename, frame_width, frame_height):
         with open(cell_filename, 'rb') as f:
             rois = pickle.load(f)
 
-            if isinstance(rois, RoiPoly):
+            if isinstance(rois[0], RoiPoly):
                 rois_dup = []
                 for roi in rois:
                     rois_dup.append(roi.lines)
@@ -68,7 +67,6 @@ def convert_to_contours(cell_filename, frame_width, frame_height):
 
     num_rows = len(reorg_centers)
     # ------------------------
-    #TODO if not possible try to group by vertical alignment
     true_value = (num_rows, len(reorg_centers[0]))
     vertical = False
     for row in range(num_rows):
@@ -137,7 +135,6 @@ def convert_to_contours(cell_filename, frame_width, frame_height):
     contour_mask = cv2.cvtColor(
         np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
 
-    print("roimanip",cell_centers)
     return cell_contours, contour_mask, cell_centers, shape_of_rows
 
 def get_cell_bounds(cell_contours):
