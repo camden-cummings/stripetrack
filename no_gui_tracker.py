@@ -6,17 +6,17 @@ import cv2
 import numpy as np
 
 from pool_run import PoolRun
-from mode_finder import ModeFinder
-from precise_time import PreciseTime
-from roi_manip import convert_to_contours
-from sort_contours_by_area import SortContours
+from live_tracker.mode_finder import ModeFinder
+from live_tracker.precise_time import PreciseTime
+from live_tracker.roi_manip import convert_to_contours
+from live_tracker.sort_contours_by_area import SortContours
 from strsim_for_speed.computer_vision.speedy_str_sim_as_a_class import SpeedyCV
 from strsim_for_speed.computer_vision.structural_sim_from_scratch import run_math, run_math_complete, normalize_diff
 
 import logging
 import argparse
 
-from arg_helpers import setup_args, get_args
+from live_tracker.arg_helpers import setup_args, get_args
 
 class NoGUIPoolRun(PoolRun):
     def __init__(self, exp_folder, event_schedule, debug, view, rois_fname, mode):

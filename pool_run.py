@@ -8,9 +8,9 @@ import numpy as np
 import pandas as pd
 import serial
 
-from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
-from command_reader import process_command_string
-from precise_time import PreciseTime
+from live_tracker.camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
+from live_tracker.command_reader import process_command_string
+from live_tracker.precise_time import PreciseTime
 
 import logging
 

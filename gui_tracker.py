@@ -5,14 +5,14 @@ import cv2
 import dearpygui.dearpygui as dpg
 import numpy as np
 
-from gui_helpers import GUIHelpers
-from mode_finder import ModeFinder
+from live_tracker.gui_helpers import GUIHelpers
+from live_tracker.mode_finder import ModeFinder
 from pool_run import PoolRun
-from precise_time import PreciseTime
-from sort_contours_by_area import SortContours
+from live_tracker.precise_time import PreciseTime
+from live_tracker.sort_contours_by_area import SortContours
 from strsim_for_speed.computer_vision.structural_sim_from_scratch import run_math, normalize_diff
 from strsim_for_speed.computer_vision.speedy_str_sim_as_a_class import SpeedyCV
-from arg_helpers import setup_args, get_args
+from live_tracker.arg_helpers import setup_args, get_args
 
 import argparse
 
@@ -34,7 +34,7 @@ class GUIPoolRun(PoolRun):
         spd = SpeedyCV(self.FRAME_HEIGHT, self.FRAME_WIDTH)
         r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)
         frame_counter = 0
-            
+
         detected_centroids = []
 
         output_filepath =  f'{self.exp_folder}\pre-processed.csv'
@@ -44,8 +44,8 @@ class GUIPoolRun(PoolRun):
         while not done.is_set():
             image = img_queue.get()
 
-            data = np.asarray(image, dtype='f') 
-            image_data = cv2.cvtColor(data, cv2.COLOR_GRAY2RGB)            
+            data = np.asarray(image, dtype='f')
+            image_data = cv2.cvtColor(data, cv2.COLOR_GRAY2RGB)
 
             if r.mode_noblur_img is None:
                 r.find_mode(frame_counter, image)
@@ -85,18 +85,18 @@ class GUIPoolRun(PoolRun):
                 masked_curr_img = masked_curr_img.astype(np.float32, copy=False)
 
                 spd.run_corr(masked_curr_img)
-                
+
                 if gui.contour_definer.going_to_mode_method:
                     spd.run_mode(masked_mode_noblur_img)
 
                     gui.contour_definer.going_to_mode_method = False
-                
+
                 if "Prev2Curr" in gui.contour_definer.cv_method:
                     spd.run_against(masked_curr_img, prev_masked_img)
 
                     prev_masked_img = masked_curr_img
-                    
-                elif "Mode" in gui.contour_definer.cv_method:  
+
+                elif "Mode" in gui.contour_definer.cv_method:
                     spd.run_against(masked_curr_img, masked_mode_noblur_img)
 
                 S = run_math(spd.cov_norm, spd.data_range, spd.ux, spd.uy, spd.uxx, vy, spd.uxy)
@@ -143,7 +143,7 @@ class GUIPoolRun(PoolRun):
 
         dpg.destroy_context()
 
-        
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     setup_args(parser)
@@ -153,7 +153,7 @@ if __name__ == '__main__':
     poolrun = GUIPoolRun(exp_folder, event_schedule, debug)
 
     print('Acquiring images...')
-    
+
     queue = multiprocessing.Queue()
     recording_queue = multiprocessing.Queue()
     done = multiprocessing.Event()
@@ -172,4 +172,3 @@ if __name__ == '__main__':
     tracking_p.join()
     p.join()
     vid_rec_p.join()
-    

@@ -8,20 +8,17 @@ import cv2
 import numpy as np
 import dearpygui.dearpygui as dpg
 
-from camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
-from gui_helpers import GUIHelpers
+from live_tracker.camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
+from live_tracker.gui_helpers import GUIHelpers
 
-from precise_time import PreciseTime
-
-from command_reader import process_command_string
+from live_tracker.precise_time import PreciseTime
+from live_tracker.command_reader import process_command_string
 
 import pandas as pd
 import os
 
 import keyboard 
 import serial
-     
-from memory_profiler import profile
 
 class PoolRun:
     def __init__(self):
@@ -83,7 +80,6 @@ class PoolRun:
         # Release system instance
         system.ReleaseInstance()
     
-    @profile
     def gui_pool(self, queue, done, start_recording):
         print("start gui pool")
         dpg.create_context()
