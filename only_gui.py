@@ -19,7 +19,7 @@ import os
 
 import keyboard 
 import serial
-     
+
 class PoolRun:
     def __init__(self):
         self.FRAME_HEIGHT, self.FRAME_WIDTH = 660, 992
@@ -97,7 +97,7 @@ class PoolRun:
             image_data = queue.get()
             data = np.flip(image_data, 2)
             data = data.ravel()
-            data = np.asfarray(data, dtype='f')
+            data = np.asarray(data, dtype='f')
             texture_data = np.true_divide(data, 255.0)
                         
             dpg.set_value("texture_tag", texture_data)

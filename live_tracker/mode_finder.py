@@ -30,7 +30,6 @@ class ModeFinder:
         
         if len(self.movie_deq) < DESIRED_MODE_FRAMES and frame_counter % 50 == 0:
             self.movie_deq.append(image)
-            print('+1')
         elif len(self.movie_deq) >= DESIRED_MODE_FRAMES and run_once == True:
             pool = Pool(processes=1)
             self.async_result = pool.apply_async(calc_mode, (self.movie_deq, self.FRAME_HEIGHT, self.FRAME_WIDTH))

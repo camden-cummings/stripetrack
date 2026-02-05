@@ -12,8 +12,6 @@ import math
 import numpy as np
 import cv2
 
-from live_tracker.roipoly import RoiPoly
-
 #TODO add auto trimmer that finds dimensions that can trim the image to to still include all of every contour
 #TODO dump all of this nonsense into roiinterface
 
@@ -22,11 +20,6 @@ def convert_to_contours(cell_filename, frame_width, frame_height):
         with open(cell_filename, 'rb') as f:
             rois = pickle.load(f)
 
-            if isinstance(rois[0], RoiPoly):
-                rois_dup = []
-                for roi in rois:
-                    rois_dup.append(roi.lines)
-                rois = rois_dup
     else:
         rois = cell_filename
         
