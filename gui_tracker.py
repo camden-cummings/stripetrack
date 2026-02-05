@@ -1,9 +1,5 @@
-import cProfile
-import io
 import multiprocessing
-import pstats
 from multiprocessing import Process
-from pstats import SortKey
 
 import cv2
 import dearpygui.dearpygui as dpg
@@ -11,46 +7,18 @@ import numpy as np
 
 from gui_helpers import GUIHelpers
 from mode_finder import ModeFinder
-from no_gui_tracker import PoolRun
+from pool_run import PoolRun
 from precise_time import PreciseTime
 from sort_contours_by_area import SortContours
 from strsim_for_speed.computer_vision.structural_sim_from_scratch import run_math, normalize_diff
 from strsim_for_speed.computer_vision.speedy_str_sim_as_a_class import SpeedyCV
 from arg_helpers import setup_args, get_args
 
-import logging
 import argparse
-
-parser = argparse.ArgumentParser()
-
-parser.add_argument(
-   "-exp_folder",
-   "--exp_folder",
-   required=True
-)
-
-parser.add_argument(
-   "-event_schedule",
-   "--event_schedule",
-   required=True
-)
-
-parser.add_argument(
-   "-d",
-   "--debug",
-   action='store_true'
-)
-
-args = parser.parse_args()
-
-exp_folder = args.exp_folder
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(filename=f'{exp_folder}\\run.log', encoding='utf-8', level=logging.DEBUG)
 
 class GUIPoolRun(PoolRun):
     def tracking_pool(self, img_queue, done):
-        logger.info("start gui pool")
+        self.logger.info("start gui pool")
 
         dpg.create_context()
         window = dpg.add_window(label="Video player", pos=(50, 50), width=self.FRAME_WIDTH, height=self.FRAME_HEIGHT) 
@@ -69,14 +37,11 @@ class GUIPoolRun(PoolRun):
             
         detected_centroids = []
 
-        output_filepath =  f'{exp_folder}\pre-processed.csv'
+        output_filepath =  f'{self.exp_folder}\pre-processed.csv'
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32, order='C')
     
-        while not done.is_set():    
-            #pr = cProfile.Profile()
-            #pr.enable()
-      
+        while not done.is_set():
             image = img_queue.get()
 
             data = np.asarray(image, dtype='f') 
@@ -175,26 +140,17 @@ class GUIPoolRun(PoolRun):
                 dpg.set_value("texture_tag", new)
 
             dpg.render_dearpygui_frame()
-                    
-            #pr.disable()
-            #s = io.StringIO()
-            #sortby = SortKey.CUMULATIVE
-            #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-            #ps.print_stats()
-            #print("printer pool", s.getvalue())
 
         dpg.destroy_context()
 
         
 if __name__ == '__main__':
-#    setup_args(parser)
-#    args = parser.parse_args()
-    #exp_folder, rois_fname, event_schedule, debug, mode = get_args(args)
+    parser = argparse.ArgumentParser()
+    setup_args(parser)
+    args = parser.parse_args()
+    exp_folder, event_schedule, debug = get_args(args)
 
-    logger = logging.getLogger(__name__)
-    logging.basicConfig(filename=f'{exp_folder}\\run.log', encoding='utf-8', level=logging.DEBUG)
-
-    poolrun = GUIPoolRun(exp_folder)
+    poolrun = GUIPoolRun(exp_folder, event_schedule, debug)
 
     print('Acquiring images...')
     

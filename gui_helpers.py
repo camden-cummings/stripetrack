@@ -32,6 +32,7 @@ class GUIHelpers(GUI):
 
         self.cell_contours = []
         self.cell_centers = []
+        self.cell_bounds = []
         self.shape_of_rows = []
         
         self.show_only_inside_contours = False
@@ -47,7 +48,7 @@ class GUIHelpers(GUI):
             self.start_recording = True
 
     def set_cells(self, _, appdata):
-        self.cell_contours, contour_mask, self.cell_centers, self.shape_of_rows = convert_to_contours(appdata["filepathname"],
+        self.cell_contours, contour_mask, self.cell_centers, self.cell_bounds, self.shape_of_rows = convert_to_contours(appdata["filepathname"],
                                                                                        self.frame_width,
                                                                                        self.frame_height)
 
