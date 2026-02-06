@@ -14,11 +14,15 @@ from strsim_for_speed.computer_vision.structural_sim_from_scratch import run_mat
 from strsim_for_speed.computer_vision.speedy_str_sim_as_a_class import SpeedyCV
 from live_tracker.arg_helpers import setup_args, get_args
 
+import logging
 import argparse
 
 class GUIPoolRun(PoolRun):
     def tracking_pool(self, img_queue, done):
-        self.logger.info("start gui pool")
+        logging.basicConfig(filename=f'{self.exp_folder}\\run.log', encoding='utf-8')
+        logger = logging.getLogger('tracker_log')
+
+        logger.info("start gui pool")
 
         dpg.create_context()
         window = dpg.add_window(label="Video player", pos=(50, 50), width=self.FRAME_WIDTH, height=self.FRAME_HEIGHT) 
@@ -40,6 +44,7 @@ class GUIPoolRun(PoolRun):
         output_filepath =  f'{self.exp_folder}\pre-processed.csv'
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32, order='C')
+        prev_thresh_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32, order='C')
     
         while not done.is_set():
             image = img_queue.get()
@@ -69,8 +74,7 @@ class GUIPoolRun(PoolRun):
                     uy_squared = spd.uy * spd.uy
                     vy = spd.cov_norm * spd.uyy - uy_squared
 
-                    sc = SortContours(contour_mask, gui.shape_of_rows, gui.cell_contours, gui.cell_centers, gui.cell_bounds)
-                    last_confident_centroid = [[gui.cell_centers[i][j] for j in range(gui.shape_of_rows[i])] for i in range(len(gui.shape_of_rows))]
+                    sc = SortContours(gui.shape_of_rows, gui.cell_contours, gui.cell_centers, gui.cell_bounds)
 
                     gui.contours_updated = False
                     if r.mode_updated:
@@ -78,7 +82,7 @@ class GUIPoolRun(PoolRun):
                         dpg.configure_item(gui.status, default_value="Status: Mode Ready")
                 
                 
-                time_ = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
+                curr_time = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
 
                 masked_curr_img = cv2.bitwise_and(
                     image, image, mask=mask)
@@ -114,14 +118,18 @@ class GUIPoolRun(PoolRun):
                 contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                 contours = contours[0] if len(contours) == 2 else contours[1]
 
-                sorted_contours = sc.sort_contours_by_area(contours, last_confident_centroid, frame_counter, time_, spd.out)
+                dpix_im = prev_thresh_img - thresh_img
+                sorted_contours = sc.sort_contours_by_area(contours, frame_counter, curr_time, spd.out, dpix_im)
+
+#                sorted_contours = sc.sort_contours_by_area(contours, last_confident_centroid, frame_counter, time_, spd.out)
 
                 detected_centroids.extend(sorted_contours)
 
                 if "Structural Similarity" in gui.contour_definer.cv_method:
-                    for time, frame_count, row, col, x, y in sorted_contours:
+                    for time, frame_count, row, col, x, y, dpix in sorted_contours:
                         cv2.circle(image_data, (x, y), 1, (0, 0, 255), 5, cv2.LINE_4)
-                    
+                  
+                prev_thresh_img = thresh_img
                 if frame_counter % self.FRAMES_TO_SAVE_AFTER == 0 and len(detected_centroids) > 0:
                     self.save_centroids_to_csv(output_filepath, detected_centroids)
                     detected_centroids.clear()

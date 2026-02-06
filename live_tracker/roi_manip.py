@@ -12,10 +12,7 @@ import math
 import numpy as np
 import cv2
 
-#TODO add auto trimmer that finds dimensions that can trim the image to to still include all of every contour
-#TODO dump all of this nonsense into roiinterface
-
-def convert_to_contours(cell_filename, frame_width, frame_height): 
+def convert_to_contours(cell_filename): 
     if isinstance(cell_filename, str):
         with open(cell_filename, 'rb') as f:
             rois = pickle.load(f)
@@ -59,7 +56,7 @@ def convert_to_contours(cell_filename, frame_width, frame_height):
             reorg_centers.append(curr_row)
 
     num_rows = len(reorg_centers)
-    # ------------------------
+
     true_value = (num_rows, len(reorg_centers[0]))
     vertical = False
     for row in range(num_rows):
@@ -118,8 +115,21 @@ def convert_to_contours(cell_filename, frame_width, frame_height):
                 cell_centers[row].append(reorg_centers[row][col][0])
                 cell_contours[y_count] = reorg_centers[row][col][1]
 
-    contour_mask = np.zeros((frame_height, frame_width, 3))
+
+    cell_bounds = get_cell_bounds(cell_contours)
     
+    return cell_contours, cell_centers, cell_bounds, shape_of_rows
+
+def get_cell_bounds(cell_contours):
+    bounds = []
+    for c in cell_contours:
+        x, y, w, h = cv2.boundingRect(c)
+        bounds.append([x, y, x+w, y+h])
+    return bounds
+
+def get_contour_mask(cell_contours, frame_width, frame_height):
+    contour_mask = np.zeros((frame_height, frame_width, 3))
+
     for c in cell_contours:
         if len(c) > 0:
             contour_mask = cv2.drawContours(contour_mask, [c],
@@ -128,14 +138,7 @@ def convert_to_contours(cell_filename, frame_width, frame_height):
     contour_mask = cv2.cvtColor(
         np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
 
-    return cell_contours, contour_mask, cell_centers, shape_of_rows
-
-def get_cell_bounds(cell_contours):
-    bounds = []
-    for c in cell_contours:
-        x, y, w, h = cv2.boundingRect(c)
-        bounds.append([x, y, x+w, y+h])
-    return bounds
+    return contour_mask
 
 def find_centroid_of_contour(contour):
     """Given a contour, finds centroid of it."""

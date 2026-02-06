@@ -11,8 +11,10 @@ import serial
 from live_tracker.camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
 from live_tracker.command_reader import process_command_string
 from live_tracker.precise_time import PreciseTime
+from live_tracker.config import TEENSY_PORT
 
 import logging
+
 
 class PoolRun:
     def __init__(self, exp_folder, event_schedule, debug):
@@ -24,12 +26,11 @@ class PoolRun:
         self.event_schedule = event_schedule
         self.debug = debug
 
-        self.logger = logging.getLogger(__name__)
-        logging.basicConfig(filename=f'{exp_folder}\\run.log', encoding='utf-8', level=logging.DEBUG)
-
-
     def video_pool(self, img_queue, done, fps_commands, recording_queue):
-        self.logger.info("start video pool")
+        logging.basicConfig(filename=f'{self.exp_folder}\\run.log', encoding='utf-8')
+        logger = logging.getLogger('tracker_log')
+
+        logger.info("start video pool")
 
         try:
             timer = PreciseTime()
@@ -67,11 +68,12 @@ class PoolRun:
                     vidcount += 1
 
                 if img_queue.qsize() > 11:
+                    print(img_queue.qsize())
                     while img_queue.qsize() > 2:
                         try:
                             img_queue.get()
                         except Exception as e:
-                            self.logger.info(e)
+                            logger.info(e)
                             break
 
                 if fps == 285.0:
@@ -98,8 +100,8 @@ class PoolRun:
             cam.DeInit()
 
         except Exception as ex:
-            self.logger.error(f'Error: {ex}')
-            self.logger.error(gc.get_stats())
+            logger.error(f'Error: {ex}')
+            logger.error(gc.get_stats())
 
         # Release reference to camera
         # NOTE: Unlike the C++ examples, we cannot rely on pointer objects being automatically
@@ -115,6 +117,9 @@ class PoolRun:
 
 
     def video_recorder_pool(self, recording_queue, recording_commands, done):
+        logging.basicConfig(filename=f'{self.exp_folder}\\run.log', encoding='utf-8', level=logging.DEBUG)
+        logger = logging.getLogger('tracker_log')
+
         start_time = -1
         end_time = -1
         result = None
@@ -145,8 +150,8 @@ class PoolRun:
                     result.write(image)
 
             except Exception as e:
-                self.logger.error(f"video recorder failed at: {e}")
-                self.logger.error(gc.get_stats())
+                logger.error(f"video recorder failed at: {e}")
+                logger.error(gc.get_stats())
 
 
     @staticmethod
@@ -162,6 +167,9 @@ class PoolRun:
 
 
     def printer_pool(self, done, fps_commands, recording_commands):
+        logging.basicConfig(filename=f'{self.exp_folder}\\run.log', encoding='utf-8', level=logging.DEBUG)
+        logger = logging.getLogger('tracker_log')
+
         timer = PreciseTime()
 
         counter = 0
@@ -169,14 +177,14 @@ class PoolRun:
         num_of_instructions = schedule_times.shape[0]
         first_time = True
         end_time = np.inf
-        dev = serial.Serial(port='COM7', baudrate=115200, timeout=.1)
+        dev = serial.Serial(port=f'COM{TEENSY_PORT}', baudrate=115200, timeout=.1)
 
         while counter < num_of_instructions and not done.is_set():
             try:
                 if first_time:  # setup all necessary pieces
                     at_time, command_string, type_of_video = process_command_string(
                         schedule_times.iloc[counter])
-                    self.logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
+                    logger.info(f"COMMANDS: {at_time} {command_string} {type_of_video}")
                     if type_of_video == 0:
                         duration = 0
                     elif type_of_video == 1:
@@ -187,7 +195,7 @@ class PoolRun:
                     diff = at_time - int(timer.now() - 3600 * 5) % 86400
 
                     if abs(diff) > 120:
-                        self.logger.info("sending val to fps")
+                        logger.info("sending val to fps")
                         fps_commands.send(self.FPS)
 
                     recording_commands.send([duration, at_time, type_of_video, counter])
@@ -208,10 +216,10 @@ class PoolRun:
 
                         if duration != 0:
                             if type_of_video == 1:
-                                self.logger.info("sending 285.0")
+                                logger.info("sending 285.0")
                                 fps_commands.send(285.0)
                             else:
-                                self.logger.info(f"sending {self.FPS}")
+                                logger.info(f"sending {self.FPS}")
                                 fps_commands.send(self.FPS)
 
                         dev.write(bytes(command_string, 'utf-8'))
@@ -229,7 +237,7 @@ class PoolRun:
                     end_time = np.inf
 
             except Exception as e:
-                self.logger.error(f"timer failed because: {e}")
-                self.logger.error(gc.get_stats())
+                logger.error(f"timer failed because: {e}")
+                logger.error(gc.get_stats())
 
         done.set()

@@ -20,4 +20,4 @@ def setup_args(parser):
 
 
 def get_args(args):
-    return args.exp_folder, args.rois_fname, args.event_schedule, args.debug, args.mode
+    return args.exp_folder, args.event_schedule, args.debug

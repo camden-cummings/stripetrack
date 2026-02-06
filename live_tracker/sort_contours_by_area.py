@@ -1,5 +1,5 @@
 import cv2
-from precise_time import PreciseTime
+from .precise_time import PreciseTime
 
 timer = PreciseTime()
 
@@ -15,8 +15,7 @@ def generate_row_col(shape_of_rows):
             yield row_num, col_num
 
 class SortContours:
-    def __init__(self, mask, shape_of_rows, cell_contours, cell_centers, cell_bounds, min_thresh=50):
-        self.mask = mask
+    def __init__(self, shape_of_rows, cell_contours, cell_centers, cell_bounds, min_thresh=50):
         self.shape_of_rows = shape_of_rows
         self.cell_contours = cell_contours
         self.cell_centers = cell_centers
@@ -50,9 +49,10 @@ class SortContours:
                 point_x, point_y = (int(x + w / 2), int(y + h / 2))  # not as exact as find_centroid_of_contour, but faster
 
                 for row, col in generate_row_col(self.shape_of_rows):
-                    minx, miny, maxx, maxy = self.cell_bounds[row][col]
+                    cell_count = row * self.shape_of_rows[row] + col
+
+                    minx, miny, maxx, maxy = self.cell_bounds[cell_count]
                     if minx < point_x < maxx and miny < point_y < maxy:
-                        cell_count = row * self.shape_of_rows[row] + col
 
                         in_polygon = cv2.pointPolygonTest(self.cell_contours[cell_count], (point_x, point_y),
                                                           False)
@@ -66,7 +66,9 @@ class SortContours:
         for row, col in generate_row_col(self.shape_of_rows):
             ten_darkest_centroids = sorted(posns[row][col], key=lambda posn: posn[1])[:10]
 
-            x, y, x2, y2 = self.cell_bounds[row][col]
+            cell_count = row * self.shape_of_rows[row] + col
+            x, y, x2, y2 = self.cell_bounds[cell_count]
+
             cell = dpix[y:y2, x:x2]
             dpix_count = len(cell[cell>0])
 
