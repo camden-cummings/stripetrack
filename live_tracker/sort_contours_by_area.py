@@ -1,7 +1,5 @@
 import cv2
-from .precise_time import PreciseTime
-
-timer = PreciseTime()
+import math
 
 def check_masked_image(centroid, cen_mask):
     if cen_mask[centroid[1]][centroid[0]] == 255.0:
@@ -15,24 +13,22 @@ def generate_row_col(shape_of_rows):
             yield row_num, col_num
 
 class SortContours:
-    def __init__(self, shape_of_rows, cell_contours, cell_centers, cell_bounds, min_thresh=50):
+    def __init__(self, shape_of_rows, cell_contours, cell_centers, cell_bounds, min_contour_area=50, MAX_CONTOUR_AREA=50000, dist=-1):
         self.shape_of_rows = shape_of_rows
         self.cell_contours = cell_contours
         self.cell_centers = cell_centers
         self.cell_bounds = cell_bounds
 
-        self.min_thresh = min_thresh
+        # standard behavior is not to use distance as a metric
+        self.dist = dist
+        
+        self.min_contour_area = min_contour_area
+        self.MAX_CONTOUR_AREA = MAX_CONTOUR_AREA
 
         self.last_confident_centroid = [[cell_centers[i][j] for j in range(shape_of_rows[i])] for i in range(len(shape_of_rows))]
         self.sorted_contours = []
 
         self.contours = []
-
-    def set_contours(self, contours):
-        self.contours = contours
-
-    def set_diff(self, diff):
-        self.diff = diff
 
     def sort_contours_by_area(self, contours, frame_count, curr_time, diff, dpix):
         self.sorted_contours.clear()
@@ -43,25 +39,28 @@ class SortContours:
             # we want to make sure that each contour we find is in a masked section of the image (i.e. relevant because it's in
             # a well, and that we know which one it is in)
 
-            if self.min_thresh < cv2.contourArea(c) < 500000:
+            if self.min_contour_area < cv2.contourArea(c) < self.MAX_CONTOUR_AREA:
                 x, y, w, h = cv2.boundingRect(c)
 
                 point_x, point_y = (int(x + w / 2), int(y + h / 2))  # not as exact as find_centroid_of_contour, but faster
 
                 for row, col in generate_row_col(self.shape_of_rows):
                     cell_count = row * self.shape_of_rows[row] + col
-
-                    minx, miny, maxx, maxy = self.cell_bounds[cell_count]
-                    if minx < point_x < maxx and miny < point_y < maxy:
-
-                        in_polygon = cv2.pointPolygonTest(self.cell_contours[cell_count], (point_x, point_y),
-                                                          False)
-                        if in_polygon >= 0:
-                            n = cv2.mean(diff[y:y + h, x:x + w])[0]
-
-                            posns[row][col].append(((point_x, point_y), n))
-
-                            break
+                    
+                    if self.dist==-1 or math.dist(self.cell_centers[row][col], (point_x, point_y)) < self.dist:
+                        # speed saving measure, faster to check first if point is within bbox of ROI, 
+                        # then once you know it is, check if it's actually within the ROI 
+                        minx, miny, maxx, maxy = self.cell_bounds[cell_count]
+                        if minx < point_x < maxx and miny < point_y < maxy:
+    
+                            in_polygon = cv2.pointPolygonTest(self.cell_contours[cell_count], (point_x, point_y),
+                                                              False)
+                            if in_polygon >= 0:
+                                n = cv2.mean(diff[y:y + h, x:x + w])[0]
+    
+                                posns[row][col].append(((point_x, point_y), n))
+    
+                                break
 
         for row, col in generate_row_col(self.shape_of_rows):
             ten_darkest_centroids = sorted(posns[row][col], key=lambda posn: posn[1])[:10]

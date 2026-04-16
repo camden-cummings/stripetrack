@@ -2,28 +2,33 @@ import gc
 import multiprocessing
 from multiprocessing import Process
 
+import logging
+import argparse
+
 import cv2
 import numpy as np
 
 from pool_run import PoolRun
+
 from live_tracker.mode_finder import ModeFinder
 from live_tracker.precise_time import PreciseTime
 from live_tracker.roi_manip import convert_to_contours, get_contour_mask
 from live_tracker.sort_contours_by_area import SortContours
+from live_tracker.arg_helpers import setup_args, get_args
+from live_tracker.config import FRAMES_TO_SAVE_AFTER, HIGH_SPEED_MOVIE_FPS, FPS
+
 from strsim_for_speed.computer_vision.speedy_str_sim_as_a_class import SpeedyCV
 from strsim_for_speed.computer_vision.structural_sim_from_scratch import run_math, run_math_complete, normalize_diff
 
-import logging
-import argparse
-
-from live_tracker.arg_helpers import setup_args, get_args
-
 class NoGUIPoolRun(PoolRun):
-    def __init__(self, exp_folder, event_schedule, debug, view, rois_fname, mode):
-        self.FRAME_WIDTH, self.FRAME_HEIGHT = 992, 660
-        self.FRAMES_TO_SAVE_AFTER = 1800
-        self.FPS = 30
-
+    def __init__(self, exp_folder, event_schedule, debug, view, rois_fname, mode, \
+                 frame_width, frame_height, thresh=155, sigma=1.5, truncate=3.5, min_contour_area=50, dist=-1):
+        
+        self.FRAME_WIDTH, self.FRAME_HEIGHT = frame_width, frame_height
+        self.FRAMES_TO_SAVE_AFTER = FRAMES_TO_SAVE_AFTER
+        self.HIGH_SPEED_MOVIE_FPS = HIGH_SPEED_MOVIE_FPS
+        self.FPS = FPS
+        
         self.exp_folder = exp_folder
         self.event_schedule = event_schedule
         self.debug = debug
@@ -31,8 +36,15 @@ class NoGUIPoolRun(PoolRun):
         self.rois_fname = rois_fname
         self.mode = mode
 
+        # tracking parameters
+        self.thresh = thresh
+        
+        self.sigma = sigma
+        self.truncate = truncate 
+        
+        self.min_contour_area = min_contour_area
+        self.dist = dist
 
-# python no_gui_tracker.py --exp_folder C:\Users\ThymeLab\Desktop\2-6-26\ --rois_fname zebrafish-tracker.cells --event_schedule scheduled-events
     def tracking_pool(self, img_queue, done):
         logging.basicConfig(filename=f'{self.exp_folder}\\run.log', encoding='utf-8')
         logger = logging.getLogger('tracker_log')
@@ -47,8 +59,8 @@ class NoGUIPoolRun(PoolRun):
 
         r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
-        sc = SortContours(shape_of_rows, cell_contours, cell_centers, cell_bounds)
-        spd = SpeedyCV(self.FRAME_HEIGHT, self.FRAME_WIDTH)
+        sc = SortContours(shape_of_rows, cell_contours, cell_centers, cell_bounds, min_contour_area=self.min_contour_area, dist=self.dist)
+        spd = SpeedyCV(self.FRAME_HEIGHT, self.FRAME_WIDTH, sigma=self.sigma, truncate=self.truncate)
 
         frame_counter = 0
 
@@ -60,11 +72,10 @@ class NoGUIPoolRun(PoolRun):
 
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32)
         prev_thresh_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32)
-
+        
         while not done.is_set():
             try:
                 image = img_queue.get()
-    
                 arr_time = str(timer.formatted_time(timer.now())).strip("[]").split(", ")
                 curr_time = "_".join(arr_time)
     
@@ -105,7 +116,7 @@ class NoGUIPoolRun(PoolRun):
                         uy_squared = np.multiply(uy, uy)
                         vy = spd.cov_norm * (spd.uxx - uy_squared)
     
-                    thresh_img = cv2.threshold(spd.out, 155, 255, cv2.THRESH_BINARY)[1]
+                    thresh_img = cv2.threshold(spd.out, self.thresh, 255, cv2.THRESH_BINARY)[1]
                     contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                     contours = contours[0] if len(contours) == 2 else contours[1]
     
@@ -137,6 +148,7 @@ class NoGUIPoolRun(PoolRun):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    
     parser.add_argument(
         "-v",
         "--view",
@@ -154,16 +166,47 @@ if __name__ == '__main__':
         "--mode",
         action='store_true'
     )
+        
+    parser.add_argument(
+        "-thresh",
+        "--thresh",
+        default=155
+    )
+    
+    parser.add_argument(
+        "-sigma",
+        "--sigma",
+        default=1.5
+    )
+    
+    parser.add_argument(
+        "-truncate",
+        "--truncate",
+        default=3.5
+    )
+    
+    parser.add_argument(
+        "-min_contour_area",
+        "--min_contour_area",
+        default=50
+    )
 
     setup_args(parser)
     args = parser.parse_args()
-    exp_folder, event_schedule, debug = get_args(args)
+    exp_folder, event_schedule, debug, frame_width, frame_height = get_args(args)
 
     view = args.view
     rois_fname = args.rois_fname
     mode = args.mode
-
-    poolrun = NoGUIPoolRun(exp_folder, event_schedule, debug, view, rois_fname, mode)
+    
+    # tracking parameters
+    sigma = args.sigma
+    truncate = args.truncate
+    min_contour_area = args.min_contour_area
+ 
+    poolrun = NoGUIPoolRun(exp_folder, event_schedule, debug, view, rois_fname, \
+                           mode, frame_width=frame_width, frame_height=frame_height, \
+                           sigma=sigma, truncate=truncate, min_contour_area=min_contour_area)
 
     print('Acquiring images...')
 

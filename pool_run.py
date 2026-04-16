@@ -1,26 +1,28 @@
 import gc
 import os
+import keyboard
+import serial
+import logging
 
 import PySpin
 import cv2
-import keyboard
 import numpy as np
 import pandas as pd
-import serial
 
 from live_tracker.camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
 from live_tracker.command_reader import process_command_string
 from live_tracker.precise_time import PreciseTime
-from live_tracker.config import TEENSY_PORT
-
-import logging
+from live_tracker.config import TEENSY_PORT, CAMERA_NUM, FRAMES_TO_SAVE_AFTER, HIGH_SPEED_MOVIE_FPS, FPS
 
 
 class PoolRun:
-    def __init__(self, exp_folder, event_schedule, debug):
-        self.FRAME_WIDTH, self.FRAME_HEIGHT = 992, 660
-        self.FRAMES_TO_SAVE_AFTER = 1800
-        self.FPS = 30
+    def __init__(self, exp_folder, event_schedule, debug, frame_width, \
+                 frame_height):
+        
+        self.FRAME_WIDTH, self.FRAME_HEIGHT = frame_width, frame_height
+        self.FRAMES_TO_SAVE_AFTER = FRAMES_TO_SAVE_AFTER
+        self.HIGH_SPEED_MOVIE_FPS = HIGH_SPEED_MOVIE_FPS
+        self.FPS = FPS
 
         self.exp_folder = exp_folder
         self.event_schedule = event_schedule
@@ -39,8 +41,7 @@ class PoolRun:
             system = PySpin.System.GetInstance()
             cam_list = setup(system)
 
-            # Run example on each camera
-            cam = cam_list[0]
+            cam = cam_list[CAMERA_NUM]
 
             nodemap, nodemap_tldevice = setup_nodemap(cam)
 
@@ -62,7 +63,7 @@ class PoolRun:
                 image = get_image(cam)
 
                 fps = node_fps.GetValue()
-                if fps == self.FPS or fps == 285.0:
+                if fps == self.FPS or fps == self.HIGH_SPEED_MOVIE_FPS:
                     time = timer.now()
                     recording_queue.put([image, time])
                     vidcount += 1
@@ -76,7 +77,7 @@ class PoolRun:
                             logger.info(e)
                             break
 
-                if fps == 285.0:
+                if fps == self.HIGH_SPEED_MOVIE_FPS:
                     if count == count_mod:
                         img_queue.put(image)
 
@@ -140,13 +141,13 @@ class PoolRun:
                             if type_of_video == 1:
                                 result = cv2.VideoWriter(f'{self.exp_folder}{vid_name}.avi',
                                                          cv2.VideoWriter_fourcc(*'MJPG'),
-                                                         285, (self.FRAME_WIDTH, self.FRAME_HEIGHT), False)
+                                                         self.HIGH_SPEED_MOVIE_FPS, (self.FRAME_WIDTH, self.FRAME_HEIGHT), False)
                             else:
                                 result = cv2.VideoWriter(f'{self.exp_folder}{vid_name}-long.avi',
                                                          cv2.VideoWriter_fourcc(*'MJPG'),
                                                          self.FPS, (self.FRAME_WIDTH, self.FRAME_HEIGHT), False)
 
-                if start_time != -1 and start_time < time < end_time:  # and vidcount <= 285:
+                if start_time != -1 and start_time < time < end_time:  # and vidcount <= self.HIGH_SPEED_MOVIE_FPS:
                     result.write(image)
 
             except Exception as e:
@@ -191,8 +192,8 @@ class PoolRun:
                         duration = 1
                     else:  # long video
                         duration = 1800
-
-                    diff = at_time - int(timer.now() - 3600 * 5) % 86400
+                    
+                    diff = at_time - int(timer.now()) % 86400
 
                     if abs(diff) > 120:
                         logger.info("sending val to fps")
@@ -203,7 +204,7 @@ class PoolRun:
                     first_time = False
                     sent = False
 
-                curr_time = int(timer.now() - 3600 * 5) % 86400
+                curr_time = int(timer.now()) % 86400
 
                 if (curr_time == at_time and (
                         type_of_video == 1 or type_of_video == 0)) or (
@@ -216,19 +217,19 @@ class PoolRun:
 
                         if duration != 0:
                             if type_of_video == 1:
-                                logger.info("sending 285.0")
-                                fps_commands.send(285.0)
+                                logger.info(f"sending {self.HIGH_SPEED_MOVIE_FPS}")
+                                fps_commands.send(self.HIGH_SPEED_MOVIE_FPS)
                             else:
                                 logger.info(f"sending {self.FPS}")
                                 fps_commands.send(self.FPS)
 
                         dev.write(bytes(command_string, 'utf-8'))
 
-                if type_of_video == 1 and not sent:  # 285 fps vids need to be at 285 fps when command to record starts
+                if type_of_video == 1 and not sent:  # HIGH_SPEED_MOVIE_FPS fps vids need to be at HIGH_SPEED_MOVIE_FPS fps when command to record starts
                     diff = at_time - curr_time
 
                     if diff == 5:
-                        fps_commands.send(285.0)
+                        fps_commands.send(self.HIGH_SPEED_MOVIE_FPS)
                         sent = True
 
                 if timer.now() >= end_time:

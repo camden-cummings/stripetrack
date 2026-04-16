@@ -19,10 +19,10 @@ import argparse
 
 class GUIPoolRun(PoolRun):
     def tracking_pool(self, img_queue, done):
-        logging.basicConfig(filename=f'{self.exp_folder}\\run.log', encoding='utf-8')
-        logger = logging.getLogger('tracker_log')
+        #logging.basicConfig(filename=f'{self.exp_folder}\\run.log', encoding='utf-8')
+        #logger = logging.getLogger('tracker_log')
 
-        logger.info("start gui pool")
+        #logger.info("start gui pool")
 
         dpg.create_context()
         window = dpg.add_window(label="Video player", pos=(50, 50), width=self.FRAME_WIDTH, height=self.FRAME_HEIGHT) 
@@ -56,7 +56,6 @@ class GUIPoolRun(PoolRun):
                 r.find_mode(frame_counter, image)
             elif gui.contour_overlay:
                 if gui.contours_updated or r.mode_updated:
-                    print("setting up")
                     contour_mask = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH, 3))
                     for c in gui.cell_contours:
                         contour_mask = cv2.drawContours(contour_mask, [c],
@@ -74,30 +73,34 @@ class GUIPoolRun(PoolRun):
                     uy_squared = spd.uy * spd.uy
                     vy = spd.cov_norm * spd.uyy - uy_squared
 
-                    sc = SortContours(gui.shape_of_rows, gui.cell_contours, gui.cell_centers, gui.cell_bounds)
+                    sc = SortContours(gui.shape_of_rows, gui.cell_contours, gui.cell_centers, gui.cell_bounds, min_contour_area=gui.contour_definer.min_contour_area, dist=gui.contour_definer.dist)
 
                     gui.contours_updated = False
                     if r.mode_updated:
                         r.mode_updated = False
                         dpg.configure_item(gui.status, default_value="Status: Mode Ready")
                 
-                
+                if gui.contour_definer.parameter_changed:
+                    spd.update_weights(gui.contour_definer.sigma, gui.contour_definer.truncate)
+                    gui.contour_definer.parameter_changed = False
+                    
                 curr_time = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
 
                 masked_curr_img = cv2.bitwise_and(
                     image, image, mask=mask)
                 masked_curr_img = masked_curr_img.astype(np.float32, copy=False)
 
+                
+                ### Running structural similarity on the two images (either prev & curr or mode & curr).
+                
                 spd.run_corr(masked_curr_img)
 
                 if gui.contour_definer.going_to_mode_method:
                     spd.run_mode(masked_mode_noblur_img)
-
                     gui.contour_definer.going_to_mode_method = False
 
                 if "Prev2Curr" in gui.contour_definer.cv_method:
                     spd.run_against(masked_curr_img, prev_masked_img)
-
                     prev_masked_img = masked_curr_img
 
                 elif "Mode" in gui.contour_definer.cv_method:
@@ -107,13 +110,12 @@ class GUIPoolRun(PoolRun):
                 S_t = S.T
                 normalize_diff(S_t, self.FRAME_WIDTH, self.FRAME_HEIGHT, spd.out)
 
-
                 if "Prev2Curr" in gui.contour_definer.cv_method:
                     uy = spd.ux.copy()
                     spd.uy = uy
                     uy_squared = np.multiply(uy, uy)
                     vy = spd.cov_norm * (spd.uxx - uy_squared)
-
+                                
                 thresh_img = cv2.threshold(spd.out, gui.contour_definer.thresh, 255, cv2.THRESH_BINARY)[1]
                 contours = cv2.findContours(thresh_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                 contours = contours[0] if len(contours) == 2 else contours[1]
@@ -121,10 +123,11 @@ class GUIPoolRun(PoolRun):
                 dpix_im = prev_thresh_img - thresh_img
                 sorted_contours = sc.sort_contours_by_area(contours, frame_counter, curr_time, spd.out, dpix_im)
 
-#                sorted_contours = sc.sort_contours_by_area(contours, last_confident_centroid, frame_counter, time_, spd.out)
-
                 detected_centroids.extend(sorted_contours)
-
+                
+                if gui.show_detected_contours and len(contours) > 0: # show all current contours, not sorted or analyzed
+                    cv2.drawContours(image_data, contours, -1, (0,255,0), 1)
+    
                 if "Structural Similarity" in gui.contour_definer.cv_method:
                     for time, frame_count, row, col, x, y, dpix in sorted_contours:
                         cv2.circle(image_data, (x, y), 1, (0, 0, 255), 5, cv2.LINE_4)
@@ -156,9 +159,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     setup_args(parser)
     args = parser.parse_args()
-    exp_folder, event_schedule, debug = get_args(args)
+    exp_folder, event_schedule, debug, frame_width, frame_height = get_args(args)
 
-    poolrun = GUIPoolRun(exp_folder, event_schedule, debug)
+    poolrun = GUIPoolRun(exp_folder, event_schedule, debug, frame_width, frame_height)
 
     print('Acquiring images...')
 

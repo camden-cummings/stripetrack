@@ -1,5 +1,5 @@
 from time import time, perf_counter, get_clock_info, localtime
-
+import datetime
 
 class PreciseTime:
     """Timer which tries to find most precise method of timing."""
@@ -19,6 +19,10 @@ class PreciseTime:
         else:
             self.time = time()
             self.perfcounter = None  # not needed
+        
+        now = datetime.datetime.now()
+        self.diff = int((now.hour*3600+now.minute*60+now.second) - (self.time % 86400))
+        self.time += self.diff
 
     @staticmethod
     def formatted_time(input_time):
@@ -29,5 +33,5 @@ class PreciseTime:
         """Finds current time according to best timer."""
         if self.perfcounter is None:
             return time()
-        return self.time + (perf_counter() - self.perfcounter)
+        return self.time + (perf_counter() - self.perfcounter) + self.diff
 

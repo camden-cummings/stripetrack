@@ -136,22 +136,16 @@ class GUIHelpers(GUI):
                         with dpg.group(width=300):
                             dpg.add_slider_float(label="Threshold", callback=self.contour_definer.threshold_change,
                                                  min_value=0, max_value=255, default_value=self.contour_definer.thresh)
-                            dpg.add_slider_float(label="Centroid Size", callback=self.contour_definer.centroid_change,
-                                                 max_value=1000, default_value=self.contour_definer.min_centroid_size)
+                            dpg.add_slider_float(label="Contour Size", callback=self.contour_definer.centroid_change,
+                                                 max_value=1000, default_value=self.contour_definer.min_contour_area)
                             dpg.add_slider_float(label="Dist", callback=self.contour_definer.dist_change,
                                                  max_value=self.contour_definer.dist*10, default_value=self.contour_definer.dist)
                             dpg.add_slider_float(label="Sigma", callback=self.contour_definer.sigma_change, min_value = 0.5,
                                                  max_value=self.contour_definer.sigma*10, default_value=self.contour_definer.sigma)
                             dpg.add_slider_float(label="Truncate", callback=self.contour_definer.truncate_change,
                                                  max_value=self.contour_definer.truncate*10, default_value=self.contour_definer.truncate)
-                            dpg.add_slider_float(label="Truncate", callback=self.contour_definer.white_thresh_change, min_value = 0,
-                                                 max_value=255, default_value=self.contour_definer.white_thresh)
                         status = dpg.add_text("Status: Calculating Mode / Not Ready")
 
                         dpg.add_checkbox(label="Show Contours", callback=self.show_detected_contours_callback)
-#                        dpg.add_checkbox(label="Only Show ROIs Inside Selected Contours",
-#                                         callback=self.only_selected_contours)
-
-#                    dpg.add_button(label="START RECORDING", callback=self.start_recording_callback)
 
         return roi, line, roi_and_line_selection, post_line, state_manager, status
