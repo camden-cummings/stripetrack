@@ -1,9 +1,9 @@
 """ """
 
 class ContourDefiner:
-    def __init__(self):
+    def __init__(self, cv_method):
         # method used to analyze fish
-        self.cv_method = ""
+        self.cv_method = cv_method
         
         self.going_to_mode_method = False
 

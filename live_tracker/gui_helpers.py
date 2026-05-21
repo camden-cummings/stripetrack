@@ -25,7 +25,7 @@ class GUIHelpers(GUI):
         self.frame_width = frame_width
         self.frame_height = frame_height
 
-        self.contour_definer = ContourDefiner()
+        self.contour_definer = ContourDefiner("Structural Similarity Prev2Curr")
 
         self.roi, self.line, self.roi_and_line_selection, self.post_line, self.state_manager, self.status = self.setup_elements(
             window)
@@ -40,17 +40,10 @@ class GUIHelpers(GUI):
         self.show_only_inside_contours = False
         self.contour_overlay = False
         self.contours_updated = False
-        self.start_recording = False
         self.mode_calculated = False
 
-
-    def start_recording_callback(self, _, __):
-        # TODO check here if GUI save file exists
-        if self.mode_calculated:
-            self.start_recording = True
-
     def set_cells(self, _, appdata):
-        self.cell_contours, self.cell_centers, self.cell_bounds, self.shape_of_rows = convert_to_contours(appdata["filepathname"])
+        self.cell_contours, self.cell_centers, self.cell_bounds, self.shape_of_rows = convert_to_contours(appdata["filepathname"], self.frame_width, self.frame_height)
         self.contours_updated = True
 
     def tab_callback(self, _, tab_id):
@@ -60,7 +53,7 @@ class GUIHelpers(GUI):
                 self.state_manager.disable = False
             case "Contour Overlay":
                 self.cell_contours, self.cell_centers, self.cell_bounds, self.shape_of_rows = convert_to_contours(
-                    self.state_manager.roi_interface.convert_rois_to_np_array(self.state_manager.roi_interface.rois))
+                    self.state_manager.roi_interface.convert_rois_to_np_array(self.state_manager.roi_interface.rois), self.frame_width, self.frame_height)
 
                 self.contour_overlay = True
                 self.contours_updated = True
@@ -130,9 +123,9 @@ class GUIHelpers(GUI):
                         dpg.add_file_extension(".cells", color=(0, 255, 0, 255), custom_text="[ROI Save File]")
 
                     with dpg.tree_node(label="Computer Vision Options", default_open=True):
-                        dpg.add_combo(("No Contours", "Structural Similarity Prev2Curr", "Diff Prev2Curr", "Structural Similarity Mode", "Diff Mode", "Threshold"),
+                        dpg.add_combo(("Structural Similarity Prev2Curr", "Diff Prev2Curr", "Structural Similarity Mode", "Diff Mode", "Threshold"),
                                       label="Contour Detecting Algorithm", callback=self.contour_definer.cv_alg_change,
-                                      default_value="No Contours", width=180)
+                                      default_value="Structural Similarity Prev2Curr", width=180)
                         with dpg.group(width=300):
                             dpg.add_slider_float(label="Threshold", callback=self.contour_definer.threshold_change,
                                                  min_value=0, max_value=255, default_value=self.contour_definer.thresh)

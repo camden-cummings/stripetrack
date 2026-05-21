@@ -141,7 +141,7 @@ class GUIPoolRun(PoolRun):
             
             texture_data = np.true_divide(image_data, 255.0)
 
-            if "Structural Similarity" in gui.contour_definer.cv_method or gui.contour_definer.cv_method == "":
+            if "Structural Similarity" in gui.contour_definer.cv_method:
                 dpg.set_value("texture_tag", texture_data)
             elif "Diff" in gui.contour_definer.cv_method:
                 diff_data = cv2.cvtColor(spd.out, cv2.COLOR_GRAY2RGB)

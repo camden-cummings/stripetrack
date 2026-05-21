@@ -12,14 +12,18 @@ import math
 import numpy as np
 import cv2
 
-def convert_to_contours(cell_filename): 
-    if isinstance(cell_filename, str):
-        with open(cell_filename, 'rb') as f:
+def convert_to_contours(cells, frame_width=0, frame_height=0): 
+    # cells can either be cell filename to be read or a np array of cells
+    if isinstance(cells, str):
+        with open(cells, 'rb') as f:
             rois = pickle.load(f)
 
     else:
-        rois = cell_filename
-        
+        rois = cells
+    
+    if len(rois) == 0:
+        rois = np.array([[[0, 0], [frame_width-1, 0], [frame_width-1, frame_height-1], [0, frame_height-1]]]) 
+    
     centers = []
     contours = []
 
