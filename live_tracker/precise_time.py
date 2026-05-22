@@ -21,7 +21,10 @@ class PreciseTime:
             self.perfcounter = None  # not needed
         
         now = datetime.datetime.now()
+        print('now', (now.hour*3600+now.minute*60+now.second))
+        print('self.time', self.time%86400)
         self.diff = int((now.hour*3600+now.minute*60+now.second) - (self.time % 86400))
+        print('diff',self.diff)
         self.time += self.diff
 
     @staticmethod
@@ -33,5 +36,5 @@ class PreciseTime:
         """Finds current time according to best timer."""
         if self.perfcounter is None:
             return time()
-        return self.time + (perf_counter() - self.perfcounter) + self.diff
+        return self.time + (perf_counter() - self.perfcounter)
 

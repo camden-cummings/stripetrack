@@ -178,11 +178,11 @@ class PoolRun:
         num_of_instructions = schedule_times.shape[0]
         first_time = True
         end_time = np.inf
-        try:
-            dev = serial.Serial(port=f'COM{TEENSY_PORT}', baudrate=115200, timeout=.1)
-        except serial.SerialException as e:
-            print(f'Could not open Teensy port. Check value of TEENSY_PORT: {TEENSY_PORT} in live_tracker/config and that Arduino IDE is closed. Quitting...')
-            done.set()
+        #try:
+        dev = serial.Serial(port=f'COM{TEENSY_PORT}', baudrate=115200, timeout=.1)
+        #except serial.SerialException as e:
+        #    print(f'Could not open Teensy port. Check value of TEENSY_PORT: {TEENSY_PORT} in live_tracker/config and that Arduino IDE is closed. Quitting...')
+        #    done.set()
             
         while counter < num_of_instructions and not done.is_set():
             try:
@@ -209,7 +209,6 @@ class PoolRun:
                     sent = False
 
                 curr_time = int(timer.now()) % 86400
-
                 if (curr_time == at_time and (
                         type_of_video == 1 or type_of_video == 0)) or (
                         curr_time >= at_time and type_of_video == 2):
