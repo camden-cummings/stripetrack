@@ -50,6 +50,16 @@ class PoolRun:
             node_fps = PySpin.CFloatPtr(nodemap.GetNode("AcquisitionFrameRate"))
             node_fps.SetValue(self.FPS)
 
+            width = PySpin.CIntegerPtr(nodemap.GetNode("Width"))#.GetValue()
+            height = PySpin.CIntegerPtr(nodemap.GetNode("Height"))#.GetValue()
+            
+            try:
+                width.SetValue(self.FRAME_WIDTH)
+                height.SetValue(self.FRAME_HEIGHT)
+            except Exception as e:
+                print(f'Failed to set width and height to the values given, {self.FRAME_WIDTH}, {self.FRAME_HEIGHT}, with following error:')    
+                print(e)
+            
             cam.BeginAcquisition()
 
             count = 1
