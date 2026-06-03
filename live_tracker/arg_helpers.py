@@ -12,13 +12,13 @@ def check_event_schedules(exp_folder):
         
 def setup_args(parser):
     parser.add_argument(
-        "-exp_folder",
+        "-e",
         "--exp_folder",
         required=True
     )
 
     parser.add_argument(
-        "-event_schedule",
+        "-s",
         "--event_schedule",
     )
 
