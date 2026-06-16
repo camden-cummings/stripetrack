@@ -7,12 +7,14 @@ import numpy as np
 
 from live_tracker.gui_helpers import GUIHelpers
 from live_tracker.mode_finder import ModeFinder
-from pool_run import PoolRun
+from live_tracker.pool_run import PoolRun
 from live_tracker.precise_time import PreciseTime
 from live_tracker.sort_contours_by_area import SortContours
 from strsim_for_speed.computer_vision.structural_sim_from_scratch import run_math, normalize_diff
 from strsim_for_speed.computer_vision.speedy_str_sim_as_a_class import SpeedyCV
 from live_tracker.arg_helpers import setup_args, get_args
+
+from pathlib import PurePath
 
 import logging
 import argparse
@@ -41,7 +43,7 @@ class GUIPoolRun(PoolRun):
 
         detected_centroids = []
 
-        output_filepath =  f'{self.exp_folder}\pre-processed.csv'
+        output_filepath = str(PurePath(f'{self.exp_folder}/pre-processed.csv'))
         
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32, order='C')
         prev_thresh_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32, order='C')

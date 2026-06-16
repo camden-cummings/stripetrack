@@ -4,15 +4,17 @@ import keyboard
 import serial
 import logging
 
+from pathlib import PurePath
+
 import PySpin
 import cv2
 import numpy as np
 import pandas as pd
 
-from live_tracker.camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
-from live_tracker.command_reader import process_command_string
-from live_tracker.precise_time import PreciseTime
-from live_tracker.config import TEENSY_PORT, CAMERA_NUM, FRAMES_TO_SAVE_AFTER, HIGH_SPEED_MOVIE_FPS, FPS
+from .camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
+from .command_reader import process_command_string
+from .precise_time import PreciseTime
+from .config import TEENSY_PORT, CAMERA_NUM, FRAMES_TO_SAVE_AFTER, HIGH_SPEED_MOVIE_FPS, FPS
 
 
 class PoolRun:
@@ -29,7 +31,7 @@ class PoolRun:
         self.debug = debug
 
     def video_pool(self, img_queue, done, fps_commands, recording_queue):
-        logging.basicConfig(filename=f'{self.exp_folder}\\run.log', encoding='utf-8')
+        logging.basicConfig(filename=(PurePath(f'{self.exp_folder}/run.log')), encoding='utf-8')
         logger = logging.getLogger('tracker_log')
 
         logger.info("start video pool")
@@ -50,8 +52,8 @@ class PoolRun:
             node_fps = PySpin.CFloatPtr(nodemap.GetNode("AcquisitionFrameRate"))
             node_fps.SetValue(self.FPS)
 
-            width = PySpin.CIntegerPtr(nodemap.GetNode("Width"))#.GetValue()
-            height = PySpin.CIntegerPtr(nodemap.GetNode("Height"))#.GetValue()
+            width = PySpin.CIntegerPtr(nodemap.GetNode("Width"))
+            height = PySpin.CIntegerPtr(nodemap.GetNode("Height"))
             
             try:
                 width.SetValue(self.FRAME_WIDTH)
@@ -128,7 +130,7 @@ class PoolRun:
 
 
     def video_recorder_pool(self, recording_queue, recording_commands, done):
-        logging.basicConfig(filename=f'{self.exp_folder}\\run.log', encoding='utf-8', level=logging.DEBUG)
+        logging.basicConfig(filename=(PurePath(f'{self.exp_folder}/run.log')), encoding='utf-8', level=logging.DEBUG)
         logger = logging.getLogger('tracker_log')
 
         start_time = -1
@@ -149,11 +151,11 @@ class PoolRun:
 
                             vid_name = f"{int(at_time / 3600)}_{int((at_time % 3600) / 60)}_{int(at_time % 60)}-{str(counter)}"
                             if type_of_video == 1:
-                                result = cv2.VideoWriter(f'{self.exp_folder}{vid_name}.avi',
+                                result = cv2.VideoWriter(str(PurePath(f'{self.exp_folder}/{vid_name}.avi')),
                                                          cv2.VideoWriter_fourcc(*'MJPG'),
                                                          self.HIGH_SPEED_MOVIE_FPS, (self.FRAME_WIDTH, self.FRAME_HEIGHT), False)
                             else:
-                                result = cv2.VideoWriter(f'{self.exp_folder}{vid_name}-long.avi',
+                                result = cv2.VideoWriter(str(PurePath(f'{self.exp_folder}/{vid_name}-long.avi')),
                                                          cv2.VideoWriter_fourcc(*'MJPG'),
                                                          self.FPS, (self.FRAME_WIDTH, self.FRAME_HEIGHT), False)
 
@@ -178,21 +180,21 @@ class PoolRun:
 
 
     def printer_pool(self, done, fps_commands, recording_commands):
-        logging.basicConfig(filename=f'{self.exp_folder}\\run.log', encoding='utf-8', level=logging.DEBUG)
+        logging.basicConfig(filename=str(PurePath(f'{self.exp_folder}/run.log')), encoding='utf-8', level=logging.DEBUG)
         logger = logging.getLogger('tracker_log')
 
         timer = PreciseTime()
 
         counter = 0
-        schedule_times = pd.read_csv(f"{self.exp_folder}/{self.event_schedule}", sep="\t", header=None)
+        schedule_times = pd.read_csv(str(PurePath(f"{self.exp_folder}/{self.event_schedule}")), sep="\t", header=None)
         num_of_instructions = schedule_times.shape[0]
         first_time = True
         end_time = np.inf
-        #try:
-        dev = serial.Serial(port=f'COM{TEENSY_PORT}', baudrate=115200, timeout=.1)
-        #except serial.SerialException as e:
-        #    print(f'Could not open Teensy port. Check value of TEENSY_PORT: {TEENSY_PORT} in live_tracker/config and that Arduino IDE is closed. Quitting...')
-        #    done.set()
+        try:
+            dev = serial.Serial(port=f'COM{TEENSY_PORT}', baudrate=115200, timeout=.1)
+        except serial.SerialException as e:
+            print(f'Could not open Teensy port. Check value of TEENSY_PORT: {TEENSY_PORT} in live_tracker/config and that Arduino IDE is closed. Quitting...')
+            done.set()
             
         while counter < num_of_instructions and not done.is_set():
             try:

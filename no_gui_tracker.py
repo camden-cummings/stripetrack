@@ -4,11 +4,12 @@ from multiprocessing import Process
 
 import logging
 import argparse
+from pathlib import PurePath
 
 import cv2
 import numpy as np
 
-from pool_run import PoolRun
+from live_tracker.pool_run import PoolRun
 
 from live_tracker.mode_finder import ModeFinder
 from live_tracker.precise_time import PreciseTime
@@ -46,7 +47,7 @@ class NoGUIPoolRun(PoolRun):
         self.dist = dist
 
     def tracking_pool(self, img_queue, done):
-        logging.basicConfig(filename=f'{self.exp_folder}\\run.log', encoding='utf-8')
+        logging.basicConfig(filename=str(PurePath(f'{self.exp_folder}/run.log')), encoding='utf-8')
         logger = logging.getLogger('tracker_log')
 
         logger.info("start tracking pool")
@@ -54,7 +55,7 @@ class NoGUIPoolRun(PoolRun):
         
         timer = PreciseTime()
 
-        cell_contours, cell_centers, cell_bounds, shape_of_rows = convert_to_contours(f"{self.exp_folder}{self.rois_fname}")
+        cell_contours, cell_centers, cell_bounds, shape_of_rows = convert_to_contours(str(PurePath(f"{self.exp_folder}/{self.rois_fname}")))
         contour_mask = get_contour_mask(cell_contours, self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
         r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)
@@ -68,7 +69,7 @@ class NoGUIPoolRun(PoolRun):
 
         detected_centroids = []
 
-        output_filepath = f'{self.exp_folder}\\pre-processed.csv'
+        output_filepath = str(PurePath(f'{self.exp_folder}/pre-processed.csv'))
 
         prev_masked_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32)
         prev_thresh_img = np.zeros((self.FRAME_HEIGHT, self.FRAME_WIDTH), dtype=np.float32)
