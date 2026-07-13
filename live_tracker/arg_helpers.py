@@ -14,7 +14,7 @@ def setup_args(parser):
     parser.add_argument(
         "-e",
         "--exp_folder",
-        required=True
+        default=""
     )
 
     parser.add_argument(
