@@ -1,29 +1,22 @@
 import multiprocessing
 from multiprocessing import Process
 
-import os
-
 import cv2
 import dearpygui.dearpygui as dpg
 import numpy as np
 
 from live_tracker.gui_helpers import GUIHelpers
 from live_tracker.mode_finder import ModeFinder
-from live_tracker.pool_run import PoolRun
+from live_tracker.pool_run import PoolRun, check_directory
 from live_tracker.precise_time import PreciseTime
 from live_tracker.sort_contours_by_area import SortContours
 from strsim_for_speed.computer_vision.structural_sim_from_scratch import run_math, normalize_diff
 from strsim_for_speed.computer_vision.speedy_str_sim_as_a_class import SpeedyCV
 from live_tracker.arg_helpers import setup_args, get_args
-from live_tracker.config import DEFAULT_DIRECTORY
 
 from pathlib import PurePath
-import shutil
-
-import logging
 import argparse
 
-import datetime
 
 class GUIPoolRun(PoolRun):
     def tracking_pool(self, img_queue, done):
@@ -69,6 +62,8 @@ class GUIPoolRun(PoolRun):
                         contour_mask = cv2.drawContours(contour_mask, [c],
                                                         -1, (255, 255, 255), thickness=cv2.FILLED)
 
+                    gui.save_rois(str(PurePath(f'{self.exp_folder}/{self.folder_name}.cells')))
+                    
                     mask = cv2.cvtColor(
                         np.array(contour_mask, dtype=np.uint8), cv2.COLOR_BGR2GRAY)
 
@@ -92,7 +87,7 @@ class GUIPoolRun(PoolRun):
                     spd.update_weights(gui.contour_definer.sigma, gui.contour_definer.truncate)
                     gui.contour_definer.parameter_changed = False
                     
-                curr_time = "_".join(str(timer.formatted_time(timer.now())).strip("[]").split(", "))
+                curr_time = "_".join(str(timer.formatted_time(timer.now() % 86400)).strip("[]").split(", "))
 
                 masked_curr_img = cv2.bitwise_and(
                     image, image, mask=mask)
@@ -129,6 +124,7 @@ class GUIPoolRun(PoolRun):
                 contours = contours[0] if len(contours) == 2 else contours[1]
 
                 dpix_im = prev_thresh_img - thresh_img
+
                 sorted_contours = sc.sort_contours_by_area(contours, frame_counter, curr_time, spd.out, dpix_im)
 
                 detected_centroids.extend(sorted_contours)
@@ -162,29 +158,15 @@ class GUIPoolRun(PoolRun):
 
         dpg.destroy_context()
 
-def check_directory(exp_folder, event_schedule):
-    if len(exp_folder) == 0:
-        curr_day = datetime.datetime.now()
-        name = f"{curr_day.month}-{curr_day.day}-{curr_day.year}" 
-        print(f'Making experiment directory with {name} as name & copying event-schedule from standard_stimulus_files')
-        exp_folder = PurePath(f"{DEFAULT_DIRECTORY}/{name}")
-        event_schedule = 'scheduled-events'
-
-    if not os.path.exists(exp_folder):
-        os.mkdir(exp_folder)
-        shutil.copy2(str(PurePath(f'standard_stimulus_files/{event_schedule}')), str(PurePath(f'{DEFAULT_DIRECTORY}/{name}/{event_schedule}')))
-
-    return exp_folder, event_schedule
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     setup_args(parser)
     args = parser.parse_args()
     exp_folder, event_schedule, debug, frame_width, frame_height = get_args(args)
     
-    exp_folder, event_schedule = check_directory(exp_folder, event_schedule)
+    exp_folder, event_schedule, folder_name = check_directory(exp_folder, event_schedule)
     
-    poolrun = GUIPoolRun(exp_folder, event_schedule, debug, frame_width, frame_height)
+    poolrun = GUIPoolRun(exp_folder, event_schedule, folder_name, debug, frame_width, frame_height)
 
     print('Acquiring images...')
 

@@ -11,14 +11,21 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from .camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image
+from .camera_helpers import setup, setup_nodemap, set_node_acquisition_mode, get_image, reset_settings
 from .command_reader import process_command_string
 from .precise_time import PreciseTime
-from .config import TEENSY_PORT, CAMERA_NUM, FRAMES_TO_SAVE_AFTER, HIGH_SPEED_MOVIE_FPS, FPS
+from .config import TEENSY_PORT, CAMERA_NUM, FRAMES_TO_SAVE_AFTER, HIGH_SPEED_MOVIE_FPS, FPS, DEFAULT_DIRECTORY
+
+from pathlib import PurePath
+import shutil
+
+import argparse
+
+import datetime
 
 
 class PoolRun:
-    def __init__(self, exp_folder, event_schedule, debug, frame_width, \
+    def __init__(self, exp_folder, event_schedule, folder_name, debug, frame_width, \
                  frame_height):
         
         self.FRAME_WIDTH, self.FRAME_HEIGHT = frame_width, frame_height
@@ -28,6 +35,7 @@ class PoolRun:
 
         self.exp_folder = exp_folder
         self.event_schedule = event_schedule
+        self.folder_name = folder_name
         self.debug = debug
 
     def video_pool(self, img_queue, done, fps_commands, recording_queue):
@@ -48,10 +56,12 @@ class PoolRun:
             nodemap, nodemap_tldevice = setup_nodemap(cam)
 
             set_node_acquisition_mode(nodemap)
+            
+            reset_settings(nodemap)
 
             node_fps = PySpin.CFloatPtr(nodemap.GetNode("AcquisitionFrameRate"))
             node_fps.SetValue(self.FPS)
-
+        
             width = PySpin.CIntegerPtr(nodemap.GetNode("Width"))
             height = PySpin.CIntegerPtr(nodemap.GetNode("Height"))
             
@@ -61,7 +71,7 @@ class PoolRun:
             except Exception as e:
                 print(f'Failed to set width and height to the values given, {self.FRAME_WIDTH}, {self.FRAME_HEIGHT}, with following error:')    
                 print(e)
-            
+
             cam.BeginAcquisition()
 
             count = 1
@@ -257,3 +267,20 @@ class PoolRun:
                 logger.error(gc.get_stats())
 
         done.set()
+        
+
+def check_directory(exp_folder, event_schedule):
+    if len(exp_folder) == 0:
+        curr_day = datetime.datetime.now()
+        name = f"{curr_day.month}-{curr_day.day}-{curr_day.year}" 
+        print(f'Making experiment directory with {name} as name & copying event-schedule from standard_stimulus_files')
+        exp_folder = PurePath(f"{DEFAULT_DIRECTORY}/{name}")
+        event_schedule = 'scheduled-events'
+
+    if not os.path.exists(exp_folder):
+        os.mkdir(exp_folder)
+    
+    if not os.path.exists(f'{exp_folder}/{event_schedule}'):
+        shutil.copy2(str(PurePath(f'standard_stimulus_files/{event_schedule}')), str(PurePath(f'{exp_folder}/{event_schedule}')))
+
+    return exp_folder, event_schedule, name

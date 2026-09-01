@@ -126,3 +126,33 @@ def get_image(cam):
     except Exception as ex:
         print('Error: %s' % ex)
         return None
+    
+def reset_settings(nodemap):
+    node_exposureauto_mode = PySpin.CEnumerationPtr(nodemap.GetNode("ExposureAuto"))
+    node_exposureauto_mode_off = node_exposureauto_mode.GetEntryByName("Off")
+    node_exposureauto_mode_continuous = node_exposureauto_mode.GetEntryByName("Continuous")
+    node_exposureauto_mode.SetIntValue(node_exposureauto_mode_continuous.GetValue())
+
+    node_exposureauto_mode.SetIntValue(node_exposureauto_mode_off.GetValue())
+
+    node_exposuretime = PySpin.CFloatPtr(nodemap.GetNode("ExposureTime"))
+    node_exposuretime.SetValue(3450.0)
+    
+    node_gainauto_mode = PySpin.CEnumerationPtr(nodemap.GetNode("GainAuto"))
+    node_gainauto_mode_off = node_gainauto_mode.GetEntryByName("Off")
+    node_gainauto_mode.SetIntValue(node_gainauto_mode_off.GetValue())
+    
+    node_gain = PySpin.CFloatPtr(nodemap.GetNode("Gain"))
+    node_gain.SetValue(0.0)
+
+    node_gamma = PySpin.CFloatPtr(nodemap.GetNode("Gamma"))
+    node_gamma.SetValue(1.25)
+
+    no = PySpin.CEnumerationPtr(nodemap.GetNode("AcquisitionFrameRateAuto"))
+    node_gainauto_mode_off = no.GetEntryByName("Off")
+    no.SetIntValue(node_gainauto_mode_off.GetValue())
+
+    node_iReverseX_bool = PySpin.CBooleanPtr(nodemap.GetNode("AcquisitionFrameRateEnabled"))
+    node_iReverseX_bool.SetValue(True)
+
+            

@@ -26,8 +26,7 @@ class PreciseTime:
 
     @staticmethod
     def formatted_time(input_time):
-        l = localtime(input_time)
-        return[l.tm_hour, l.tm_min, l.tm_sec]
+        return[int(input_time // 3600), int((input_time % 3600) // 60), int(input_time % 60)]
     
     def now(self) -> float:
         """Finds current time according to best timer."""

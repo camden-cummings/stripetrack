@@ -9,7 +9,7 @@ from pathlib import PurePath
 import cv2
 import numpy as np
 
-from live_tracker.pool_run import PoolRun
+from live_tracker.pool_run import PoolRun, check_directory
 
 from live_tracker.mode_finder import ModeFinder
 from live_tracker.precise_time import PreciseTime
@@ -55,7 +55,7 @@ class NoGUIPoolRun(PoolRun):
         
         timer = PreciseTime()
 
-        cell_contours, cell_centers, cell_bounds, shape_of_rows = convert_to_contours(str(PurePath(f"{self.exp_folder}/{self.rois_fname}")))
+        cell_contours, cell_centers, cell_bounds, shape_of_rows = convert_to_contours(str(PurePath(f"{self.rois_fname}")))
         contour_mask = get_contour_mask(cell_contours, self.FRAME_WIDTH, self.FRAME_HEIGHT)
 
         r = ModeFinder(self.FRAME_WIDTH, self.FRAME_HEIGHT)
@@ -77,7 +77,8 @@ class NoGUIPoolRun(PoolRun):
         while not done.is_set():
             try:
                 image = img_queue.get()
-                arr_time = str(timer.formatted_time(timer.now())).strip("[]").split(", ")
+
+                arr_time = str(timer.formatted_time(timer.now() % 86400)).strip("[]").split(", ")
                 curr_time = "_".join(arr_time)
     
                 if self.mode and r.mode_noblur_img is None:
@@ -196,6 +197,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     exp_folder, event_schedule, debug, frame_width, frame_height = get_args(args)
 
+    exp_folder, event_schedule = check_directory(exp_folder, event_schedule)
+    
     view = args.view
     rois_fname = args.rois_fname
     mode = args.mode
